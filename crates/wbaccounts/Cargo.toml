@@ -16,3 +16,6 @@ parking_lot.workspace = true
 rand.workspace = true
 flate2.workspace = true
 percent-encoding.workspace = true
+
+[lints]
+workspace = true

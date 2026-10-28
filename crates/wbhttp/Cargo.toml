@@ -24,3 +24,6 @@ url.workspace = true
 # `--no-default-features` links the system libssl instead.
 default = ["vendored-openssl"]
 vendored-openssl = ["openssl/vendored"]
+
+[lints]
+workspace = true

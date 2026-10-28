@@ -183,9 +183,12 @@ fn restricted_export_import_refresh_success_does_not_bypass() {
         json!({"data":{"accessToken":jwt("u",4_000_000_001i64)}}),
     ))
     .unwrap();
-    let b = import_document(&export_document(&[a.clone()], None, true, None), None)
-        .unwrap()
-        .remove(0);
+    let b = import_document(
+        &export_document(std::slice::from_ref(&a), None, true, None),
+        None,
+    )
+    .unwrap()
+    .remove(0);
     assert_eq!(b.throttle_wait("hy3", now), 7200.0);
     assert_eq!(b.cap_until("hy3", now), now + 300.0);
     a.note_restricted("again", now + 10.0).unwrap();

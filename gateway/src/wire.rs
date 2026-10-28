@@ -73,12 +73,16 @@ pub fn json_reply(status: u16, value: Value) -> Reply {
 }
 
 pub fn response(status: u16, content_type: &str, data: Vec<u8>) -> Reply {
+    response_bytes(status, content_type, Bytes::from(data))
+}
+
+pub fn response_bytes(status: u16, content_type: &str, data: Bytes) -> Reply {
     Response::builder()
         .status(StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))
         .header(header::CONTENT_TYPE, content_type)
         .header(header::CONTENT_LENGTH, data.len())
         .header(header::SERVER, wbcore::SERVER_VERSION)
-        .body(Full::new(Bytes::from(data)).boxed_unsync())
+        .body(Full::new(data).boxed_unsync())
         .expect("constant response headers")
 }
 
@@ -97,7 +101,13 @@ pub fn error(status: u16, message: impl Into<String>, anthropic: bool) -> Reply 
     } else {
         json!({"error":{"message":message,"type":kind,"code":status}})
     };
-    let mut reply = json_reply(status, value);
+    json_reply(status, value)
+}
+
+/// An error after which the connection cannot be reused safely: the request
+/// body may be partly unread (oversized or timed out).
+pub fn fatal(status: u16, message: impl Into<String>, anthropic: bool) -> Reply {
+    let mut reply = error(status, message, anthropic);
     reply.headers_mut().insert(
         header::CONNECTION,
         header::HeaderValue::from_static("close"),

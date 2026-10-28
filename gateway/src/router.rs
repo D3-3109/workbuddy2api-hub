@@ -59,20 +59,11 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
     let mut reply = if parts.method == Method::OPTIONS {
         wire::response(204, "text/plain", vec![])
     } else if parts.method == Method::GET && matches!(path.as_str(), "/" | "/dashboard" | "/ui") {
-        let lang = app.settings.snapshot()["ui_language"]
+        let lang = app.settings.current()["ui_language"]
             .as_str()
             .unwrap_or("zh")
             .to_owned();
-        let html = include_str!("../../assets/dashboard.html").replace(
-            "data-ui-language=\"__WB_UI_LANGUAGE__\"",
-            &format!("data-ui-language=\"{lang}\""),
-        );
-        let tag = format!("\"{}\"", wbcore::ids::sha256_hex(&html));
-        wire::etag(
-            wire::response(200, "text/html; charset=utf-8", html.into_bytes()),
-            &parts.headers,
-            &tag,
-        )
+        dashboard(&lang, &parts.headers)
     } else if parts.method == Method::GET && is_api {
         match app.authenticate(&parts.headers, &q) {
             Err(()) => wire::error(401, "missing or invalid API key", anthropic),
@@ -129,6 +120,7 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
         )
         .await
         {
+            Err((status @ (408 | 413), msg)) => wire::fatal(status, msg, anthropic),
             Err((status, msg)) => wire::error(status, msg, anthropic),
             Ok(payload) if is_api => {
                 dispatch::chat(app.clone(), &path, payload, &parts.headers, &q, key, pinned).await
@@ -154,6 +146,65 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
     reply
 }
 
+struct Page {
+    html: bytes::Bytes,
+    gzip: bytes::Bytes,
+    tag: String,
+}
+
+/// The dashboard is ~1 MB; render, hash and compress it once per UI language.
+fn dashboard(lang: &str, headers: &hyper::HeaderMap) -> Reply {
+    use std::{collections::HashMap, io::Write, sync::LazyLock};
+    static PAGES: LazyLock<parking_lot::Mutex<HashMap<String, Arc<Page>>>> =
+        LazyLock::new(Default::default);
+    let page = PAGES
+        .lock()
+        .entry(lang.to_owned())
+        .or_insert_with(|| {
+            let html = include_str!("../../assets/dashboard.html").replace(
+                "data-ui-language=\"__WB_UI_LANGUAGE__\"",
+                &format!("data-ui-language=\"{lang}\""),
+            );
+            let tag = format!("\"{}\"", wbcore::ids::sha256_hex(&html));
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            let gzip = gz
+                .write_all(html.as_bytes())
+                .and_then(|()| gz.finish())
+                .unwrap_or_default();
+            Arc::new(Page {
+                html: html.into_bytes().into(),
+                gzip: gzip.into(),
+                tag,
+            })
+        })
+        .clone();
+    let accepts_gzip = wire::header_text(headers, "accept-encoding").is_some_and(|v| {
+        v.split(',').any(|e| {
+            e.split(';')
+                .next()
+                .is_some_and(|e| e.trim().eq_ignore_ascii_case("gzip"))
+        })
+    });
+    let body = if accepts_gzip && !page.gzip.is_empty() {
+        page.gzip.clone()
+    } else {
+        page.html.clone()
+    };
+    let mut reply = wire::response_bytes(200, "text/html; charset=utf-8", body);
+    if accepts_gzip && !page.gzip.is_empty() {
+        reply.headers_mut().insert(
+            hyper::header::CONTENT_ENCODING,
+            hyper::header::HeaderValue::from_static("gzip"),
+        );
+    }
+    let mut reply = wire::etag(reply, headers, &page.tag);
+    reply.headers_mut().insert(
+        hyper::header::VARY,
+        hyper::header::HeaderValue::from_static("Accept-Encoding"),
+    );
+    reply
+}
+
 fn api_error(status: u16, message: &str, anthropic: bool, path: &str) -> Reply {
     let mut r = wire::error(status, message, anthropic);
     wire::cors(path, &mut r);
@@ -161,8 +212,20 @@ fn api_error(status: u16, message: &str, anthropic: bool, path: &str) -> Reply {
 }
 
 fn models(app: &App, realm: Realm, key: Option<&Value>, pin: Option<&str>) -> Reply {
-    let settings = app.settings.snapshot();
-    let mut response = app.catalog.read().list(realm);
+    let settings = app.settings.current();
+    let (mut response, pro) = {
+        let catalog = app.catalog.read();
+        let response = catalog.list(realm);
+        let pro: std::collections::HashSet<String> = response["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|row| row["id"].as_str())
+            .filter(|id| catalog.requires_pro(realm, id))
+            .map(str::to_owned)
+            .collect();
+        (response, pro)
+    };
     let account = match pin {
         Some(reference) => match app.pool.find_unique(reference) {
             Ok(a) => Some(a),
@@ -175,6 +238,24 @@ fn models(app: &App, realm: Realm, key: Option<&Value>, pin: Option<&str>) -> Re
             return wire::error(403, "API key does not permit the pinned account", false);
         }
     }
+    let pinned_view = account.as_ref().map(|a| a.model_view());
+    // Accounts that can serve this listing, read once instead of per model.
+    let candidates: Vec<wbaccounts::ModelView> = if settings["models_only_available"] == json!(true)
+    {
+        app.pool
+            .accounts()
+            .iter()
+            .filter(|a| {
+                a.realm() == realm
+                    && account_allowed(key, a.uid())
+                    && account.as_ref().is_none_or(|pin| pin.uid() == a.uid())
+            })
+            .map(|a| a.model_view())
+            .filter(|v| v.enabled)
+            .collect()
+    } else {
+        Vec::new()
+    };
     if let Some(rows) = response["data"].as_array_mut() {
         rows.retain(|row| {
             let id = row["id"].as_str().unwrap_or("");
@@ -183,46 +264,22 @@ fn models(app: &App, realm: Realm, key: Option<&Value>, pin: Option<&str>) -> Re
             {
                 return false;
             }
-            if let Some(a) = &account {
-                if a.realm() != realm {
-                    return false;
-                }
-                if a.public_metadata()["disabledModels"]
-                    .as_array()
-                    .is_some_and(|m| {
-                        m.iter()
-                            .any(|v| v.as_str().is_some_and(|s| s.eq_ignore_ascii_case(id)))
-                    })
-                {
+            if let (Some(a), Some(view)) = (&account, &pinned_view) {
+                if a.realm() != realm || view.disables(id) {
                     return false;
                 }
             }
             if settings["models_only_available"] == json!(true) {
-                return app.pool.accounts().iter().any(|a| {
-                    if a.realm() != realm
-                        || !account_allowed(key, a.uid())
-                        || account.as_ref().is_some_and(|pin| pin.uid() != a.uid())
-                    {
-                        return false;
-                    }
-                    let view = a.public_metadata();
-                    let pro = app.catalog.read().requires_pro(realm, id);
-                    view["enabled"] != json!(false)
-                        && (!pro
-                            || view["tier"]["paid"] == json!(true)
-                            || view["credits"]["is_paid_user"] == json!(true))
-                        && !view["disabledModels"].as_array().is_some_and(|xs| {
-                            xs.iter()
-                                .any(|x| x.as_str().is_some_and(|s| s.eq_ignore_ascii_case(id)))
-                        })
-                });
+                let needs_paid = pro.contains(id);
+                return candidates
+                    .iter()
+                    .any(|v| (!needs_paid || v.paid) && !v.disables(id));
             }
             true
         });
     }
     wire::json_reply(200, response)
 }
-
 fn account_allowed(key: Option<&Value>, uid: &str) -> bool {
     key.is_none_or(|k| wbsettings::key_allows_account(k, uid))
 }

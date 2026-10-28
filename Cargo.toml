@@ -48,6 +48,15 @@ url = "2"
 uuid = { version = "1", features = ["v4"] }
 ipnet = "2"
 
+[workspace.lints.clippy]
+# Reply/Account-sized error values and option structs filled field by field
+# are deliberate in this code base; neither is on a hot path.
+result_large_err = "allow"
+large_enum_variant = "allow"
+field_reassign_with_default = "allow"
+items_after_test_module = "allow"
+regex_creation_in_loops = "allow"
+
 [profile.release]
 lto = "thin"
 codegen-units = 4

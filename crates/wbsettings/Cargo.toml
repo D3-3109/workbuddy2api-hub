@@ -17,3 +17,6 @@ regex.workspace = true
 chrono.workspace = true
 ipnet.workspace = true
 url.workspace = true
+
+[lints]
+workspace = true

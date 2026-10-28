@@ -65,7 +65,7 @@ pub async fn post(
             &peer.ip().to_string(),
             wire::header_text(headers, "x-real-ip"),
             wire::header_text(headers, "x-forwarded-for"),
-            &trusted,
+            trusted,
         );
         let reply = blocking(move || {
             let _guard = MUTATION.lock();
@@ -146,6 +146,74 @@ fn unsupported() -> Reply {
         "this management feature is not implemented in the Rust gateway",
     )
 }
+/// The dashboard polls several usage views every 5 seconds, and each one
+/// scans the whole usage log. Like the Python baseline's `_STATS_TTL` cache,
+/// keep each rendered body for a few seconds, so new requests show up within
+/// `USAGE_TTL`. Pricing files, accounts and keys are part of the key, and a
+/// log that shrank or was replaced is too, so those changes show immediately.
+const USAGE_TTL: std::time::Duration = std::time::Duration::from_secs(5);
+const USAGE_ENTRIES: usize = 32;
+type UsageEntry = (String, std::time::Instant, String, bytes::Bytes);
+static USAGE_CACHE: Mutex<Vec<UsageEntry>> = Mutex::new(Vec::new());
+
+fn usage_cache_key(app: &App, path: &str, params: &Value) -> String {
+    let stamp = |name: &str| {
+        fs::metadata(app.usage.directory().join(name))
+            .ok()
+            .map(|m| (m.len(), m.modified().ok()))
+    };
+    // Appends only grow the log; identify the file, not its current length.
+    let log = fs::metadata(app.usage.directory().join("usage.jsonl"))
+        .ok()
+        .map(|m| (m.created().ok(), m.len() / (64 * 1024 * 1024)));
+    let accounts: Vec<_> = app
+        .pool
+        .accounts()
+        .iter()
+        .map(|a| (a.uid().to_owned(), a.realm()))
+        .collect();
+    format!(
+        "{path}|{}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
+        wbcore::pyjson::dumps_compact(params),
+        log,
+        stamp("pricing-policies.jsonl"),
+        stamp("pricing-timeline.jsonl"),
+        (
+            stamp("pricing-overrides.json"),
+            stamp("pricing-markup.json")
+        ),
+        accounts,
+        app.realm.read().as_str(),
+        wbcore::pyjson::dumps_compact(&app.settings.view()["api_keys"]),
+    )
+}
+fn usage_cache_get(key: &str) -> Option<(String, bytes::Bytes)> {
+    let mut cache = USAGE_CACHE.lock();
+    let now = std::time::Instant::now();
+    cache.retain(|(_, at, _, _)| now.duration_since(*at) < USAGE_TTL);
+    cache
+        .iter()
+        .find(|(k, _, _, _)| k == key)
+        .map(|(_, _, tag, body)| (tag.clone(), body.clone()))
+}
+fn usage_cache_put(key: String, body: bytes::Bytes) -> String {
+    use sha2::Digest;
+    let tag = format!("\"{}\"", &hex::encode(sha2::Sha256::digest(&body))[..20]);
+    let mut cache = USAGE_CACHE.lock();
+    if cache.len() >= USAGE_ENTRIES {
+        cache.remove(0);
+    }
+    cache.push((key, std::time::Instant::now(), tag.clone(), body));
+    tag
+}
+fn usage_reply(body: bytes::Bytes, headers: &HeaderMap, tag: &str) -> Reply {
+    wire::etag(
+        wire::response_bytes(200, "application/json; charset=utf-8", body),
+        headers,
+        tag,
+    )
+}
+
 fn no_store(mut reply: Reply) -> Reply {
     reply.headers_mut().insert(
         header::CACHE_CONTROL,
@@ -267,11 +335,18 @@ fn get_local(app: &App, path: &str, headers: &HeaderMap, q: &Query) -> Reply {
                 }
             }
             app.usage
-                .set_pricing_enabled(app.settings.snapshot()["pricing_enabled"] != false);
+                .set_pricing_enabled(app.settings.current()["pricing_enabled"] != false);
+            let key = usage_cache_key(app, path, &params);
+            if let Some((tag, body)) = usage_cache_get(&key) {
+                return usage_reply(body, headers, &tag);
+            }
             match app.usage.query(path, &params, &app.metadata()) {
                 Ok(mut value) => {
                     scrub_secrets(&mut value, &log_secrets(app));
-                    ok(value)
+                    mask_names(&mut value);
+                    let body = bytes::Bytes::from(wbcore::pyjson::dumps_u(&value));
+                    let tag = usage_cache_put(key, body.clone());
+                    usage_reply(body, headers, &tag)
                 }
                 Err(e) if e.kind() == io::ErrorKind::Unsupported => unsupported(),
                 Err(_) => fail(500, "could not read usage or pricing history"),
@@ -1004,9 +1079,9 @@ fn mask_names(value: &mut Value) {
                         | "path"
                         | "storage"
                         | "file"
-                ) {
-                    mask_names(v);
-                } else if v.is_object() || v.is_array() {
+                ) || v.is_object()
+                    || v.is_array()
+                {
                     mask_names(v);
                 }
             }

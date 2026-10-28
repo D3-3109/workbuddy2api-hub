@@ -459,10 +459,7 @@ pub(crate) fn apply_patch(data: &mut Value, patch: &Map<String, Value>) -> Resul
                     match field.as_str() {
                         "mode"
                             if ["passthrough", "custom", "append"]
-                                .contains(&s.trim().to_lowercase().as_str()) =>
-                        {
-                            ()
-                        }
+                                .contains(&s.trim().to_lowercase().as_str()) => {}
                         "file" => (),
                         "text" if s.len() <= 65536 => (),
                         _ => return Err(invalid(format!("invalid prompt.{field}"))),

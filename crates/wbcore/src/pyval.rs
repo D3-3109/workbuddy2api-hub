@@ -238,7 +238,7 @@ pub fn py_round(x: f64, nd: i32) -> f64 {
     }
     let split = digits.len() - places;
     let discarded = &digits.as_bytes()[split..];
-    let odd = split > 0 && (digits.as_bytes()[split - 1] - b'0') % 2 != 0;
+    let odd = split > 0 && !(digits.as_bytes()[split - 1] - b'0').is_multiple_of(2);
     let up = discarded[0] > b'5'
         || (discarded[0] == b'5'
             && (discarded[1..].iter().any(|b| *b != b'0') || magnitude.fract() != 0.0 || odd));

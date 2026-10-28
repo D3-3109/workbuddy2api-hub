@@ -170,6 +170,19 @@ pub(crate) struct State {
     pub runtime: Runtime,
     pub guards: Guards,
 }
+/// Model-listing view of one account; see [`Account::model_view`].
+pub struct ModelView {
+    pub enabled: bool,
+    pub paid: bool,
+    /// Lowercased ids; compare with a lowercased model id.
+    pub disabled_models: HashSet<String>,
+}
+impl ModelView {
+    pub fn disables(&self, model: &str) -> bool {
+        self.disabled_models.contains(&model.to_ascii_lowercase())
+    }
+}
+
 /// Shared account. Identity/uid/realm are immutable; tokens and limits use short locks.
 /// No method opens a network connection. Secret fields are omitted from Debug.
 pub struct Account {
@@ -617,6 +630,23 @@ impl Account {
     }
     pub fn set_disabled_models(&self, models: &[String]) -> Result<()> {
         self.patch(&json!({"disabledModels":models}))
+    }
+    /// The fields `/v1/models` filtering needs, without building `public_metadata`.
+    pub fn model_view(&self) -> ModelView {
+        let s = self.state.read();
+        ModelView {
+            enabled: s.doc["enabled"] != json!(false),
+            paid: s.doc["tier"]["paid"] == json!(true)
+                || s.doc["credits"]["is_paid_user"] == json!(true),
+            disabled_models: s.doc["disabledModels"]
+                .as_array()
+                .map(|xs| {
+                    xs.iter()
+                        .filter_map(|x| x.as_str().map(str::to_ascii_lowercase))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
     }
     pub fn weight(&self) -> i64 {
         self.state.read().doc["weight"].as_i64().unwrap_or(1)

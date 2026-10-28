@@ -21,8 +21,12 @@ use tokio_openssl::SslStream;
 pub(crate) const MAX_HEADERS: usize = 64 * 1024;
 const MAX_HEADER_COUNT: usize = 128;
 const READ_SIZE: usize = 16 * 1024;
-const IDLE_TTL: Duration = Duration::from_secs(90);
-const PER_KEY_CAP: usize = 2;
+// Below the common 60-75 s server/LB keep-alive timeouts, so a pooled
+// connection is rarely closed by the peer just as it is reused.
+const IDLE_TTL: Duration = Duration::from_secs(55);
+// Concurrent requests on one credential (shared affinity key, parallel agent
+// calls) would otherwise reconnect and redo the TLS handshake every time.
+const PER_KEY_CAP: usize = 16;
 const GLOBAL_IDLE_CAP: usize = 256;
 
 enum Stream {
@@ -157,8 +161,8 @@ impl Connection {
     }
 
     pub async fn read_more(&mut self, wait: Duration, phase: &'static str) -> Result<usize> {
-        let mut buffer = [0u8; READ_SIZE];
-        let read = timeout(wait, self.stream.read(&mut buffer))
+        self.buffer.reserve(READ_SIZE);
+        let read = timeout(wait, self.stream.read_buf(&mut self.buffer))
             .await
             .map_err(|_| Error::new(ErrorKind::Timeout, phase))?
             .map_err(|e| {
@@ -171,7 +175,6 @@ impl Connection {
                     phase,
                 )
             })?;
-        self.buffer.extend_from_slice(&buffer[..read]);
         Ok(read)
     }
 
@@ -343,7 +346,7 @@ mod tests {
             identity: [0; 32],
         };
         let mut peers = Vec::new();
-        for _ in 0..3 {
+        for _ in 0..PER_KEY_CAP + 1 {
             let socket = TcpStream::connect(addr).await.unwrap();
             peers.push(listener.accept().await.unwrap().0);
             pool.put(
@@ -354,9 +357,9 @@ mod tests {
                 },
             );
         }
-        assert_eq!(pool.idle.get(&key).unwrap().len(), 2);
+        assert_eq!(pool.idle.get(&key).unwrap().len(), PER_KEY_CAP);
         for idle in pool.idle.get_mut(&key).unwrap() {
-            idle.since = Instant::now() - Duration::from_secs(91);
+            idle.since = Instant::now() - IDLE_TTL - Duration::from_secs(1);
         }
         assert!(pool.take(&key).is_none());
         assert!(pool.idle.is_empty());

@@ -8,3 +8,6 @@ description = "Responses API and Anthropic Messages translation to/from chat"
 [dependencies]
 wbcore.workspace = true
 serde_json.workspace = true
+
+[lints]
+workspace = true

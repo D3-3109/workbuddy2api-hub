@@ -36,20 +36,35 @@ impl LogChannel {
         let spawned = std::thread::Builder::new()
             .name("wb-stderr-writer".into())
             .spawn(move || {
-                while let Ok(message) = receiver.recv() {
-                    match message {
-                        Message::Line(line) => {
-                            if !status.closed.load(Ordering::Acquire)
-                                && (writer.write_all(line.as_bytes()).is_err()
-                                    || writer.flush().is_err())
-                            {
-                                status.closed.store(true, Ordering::Release);
+                // Write everything already queued as one batch: one write and
+                // one flush per burst instead of per line.
+                let mut batch = Vec::with_capacity(16 * 1024);
+                while let Ok(first) = receiver.recv() {
+                    let mut stop = None;
+                    let mut next = Some(first);
+                    while let Some(message) = next.take() {
+                        match message {
+                            Message::Line(line) => batch.extend_from_slice(line.as_bytes()),
+                            Message::Stop(done) => {
+                                stop = Some(done);
+                                break;
                             }
                         }
-                        Message::Stop(done) => {
-                            let _ = done.send(());
-                            return;
+                        if batch.len() >= 64 * 1024 {
+                            break;
                         }
+                        next = receiver.try_recv().ok();
+                    }
+                    if !batch.is_empty()
+                        && !status.closed.load(Ordering::Acquire)
+                        && (writer.write_all(&batch).is_err() || writer.flush().is_err())
+                    {
+                        status.closed.store(true, Ordering::Release);
+                    }
+                    batch.clear();
+                    if let Some(done) = stop {
+                        let _ = done.send(());
+                        return;
                     }
                 }
             });
@@ -218,9 +233,9 @@ mod tests {
         channel.emit("INFO", "two");
         channel.shutdown(Duration::from_secs(2));
         let rows = output.lock().unwrap();
-        assert_eq!(rows.len(), 2);
         assert!(rows.iter().all(|(thread, _)| thread == "wb-stderr-writer"));
-        assert!(rows[1].1.contains("two"));
+        let text: String = rows.iter().map(|(_, text)| text.as_str()).collect();
+        assert_eq!(text, "[INFO] one\n[INFO] two\n");
     }
 
     #[test]

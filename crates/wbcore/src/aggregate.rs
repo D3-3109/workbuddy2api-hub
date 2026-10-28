@@ -241,7 +241,7 @@ impl Aggregator {
             "choices".into(),
             json!([{"index": 0, "message": message, "finish_reason": finish}]),
         );
-        if let Some(mut u) = usage.filter(|u| truthy(u)) {
+        if let Some(mut u) = usage.filter(truthy) {
             normalize_cache_aliases(&mut u);
             out.insert("usage".into(), u);
         }

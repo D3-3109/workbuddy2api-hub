@@ -362,7 +362,7 @@ fn comma(n: i64) -> String {
     let len = digits.len();
     let mut out = String::new();
     for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 {
+        if i > 0 && (len - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);

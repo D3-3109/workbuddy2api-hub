@@ -31,7 +31,11 @@ parking_lot.workspace = true
 url.workspace = true
 sha2.workspace = true
 hex.workspace = true
+flate2.workspace = true
 
 [features]
 default = []
 vendored-openssl = ["wbhttp/vendored-openssl"]
+
+[lints]
+workspace = true

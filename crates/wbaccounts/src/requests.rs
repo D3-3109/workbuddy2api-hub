@@ -489,8 +489,9 @@ pub fn build_chat_headers(cred: &Cred, options: &ChatOptions) -> Result<Vec<(Str
     }
     h.extend(build_identity_headers(cred, options)?);
     let device = options.device_token.as_deref().filter(|s| !s.is_empty());
-    if cred.realm == Realm::Cn && cred.product != Product::Cli && device.is_some() {
-        add(&mut h, "X-Device-Token", device.unwrap());
+    if let Some(device) = device.filter(|_| cred.realm == Realm::Cn && cred.product != Product::Cli)
+    {
+        add(&mut h, "X-Device-Token", device);
     } else if cred.product == Product::Vscode && cred.enterprise_id.is_empty() {
         add(&mut h, "X-Device-Token-Error", "sdk_not_initialized");
     }

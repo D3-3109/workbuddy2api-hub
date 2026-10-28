@@ -285,10 +285,10 @@ pub async fn chat(
                 return wire::error(error.status, error.message, anthropic);
             }
         };
-        aggregated.as_object_mut().map(|m| {
+        if let Some(m) = aggregated.as_object_mut() {
             m.remove("elapsed_ms");
             m.remove("first_chunk_at");
-        });
+        }
         let result = match protocol {
             Protocol::Chat => Ok(aggregated),
             Protocol::Responses(opts) => wbtranslate::chat_to_response(&aggregated, &opts),
@@ -361,7 +361,7 @@ fn model_sets(app: &App, realm: Realm) -> (Arc<HashSet<String>>, Arc<HashSet<Str
         sets.pro.clear();
         sets.revision = Some(catalog.revision());
     }
-    if !sets.free.contains_key(&realm) {
+    if let std::collections::hash_map::Entry::Vacant(slot) = sets.free.entry(realm) {
         let (mut free, mut pro) = (HashSet::new(), HashSet::new());
         if let Some(rows) = catalog.list(realm)["data"].as_array() {
             for row in rows {
@@ -375,7 +375,7 @@ fn model_sets(app: &App, realm: Realm) -> (Arc<HashSet<String>>, Arc<HashSet<Str
                 }
             }
         }
-        sets.free.insert(realm, Arc::new(free));
+        slot.insert(Arc::new(free));
         sets.pro.insert(realm, Arc::new(pro));
     }
     (sets.free[&realm].clone(), sets.pro[&realm].clone())

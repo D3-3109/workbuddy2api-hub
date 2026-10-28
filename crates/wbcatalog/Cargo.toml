@@ -9,3 +9,6 @@ description = "Model catalog: bundled snapshot, remote curation, /v1/models entr
 wbcore.workspace = true
 serde_json.workspace = true
 regex.workspace = true
+
+[lints]
+workspace = true

@@ -17,3 +17,4 @@
 # Cargo.lock is intentionally tracked for reproducible --locked application builds.
 /bench/results/
 /bench/target/
+/.env

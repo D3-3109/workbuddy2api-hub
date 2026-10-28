@@ -96,6 +96,31 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/container_smoke.py --image "$IMAGE" --architecture "$ARCH" --report ci-reports/container.json
+      - name: Test the README docker-compose.yml
+        shell: bash
+        env:
+          WB_IMAGE: local/wb2api-rust:${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cp docker-compose.yml .env.example "$work/"
+          cd "$work"
+          key="ci-$(openssl rand -hex 16)"
+          sed -e "s/^API_KEY=.*/API_KEY=$key/" \
+              -e "s/^WB_PANEL_PASSWORD=.*/WB_PANEL_PASSWORD=ci-$(openssl rand -hex 16)/" \
+              .env.example > .env
+          trap 'docker compose logs --no-color || true; docker compose down -v || true' EXIT
+          docker compose up -d --pull never
+          for _ in $(seq 60); do
+            state="$(docker inspect -f '{{.State.Health.Status}}' wb2api 2>/dev/null || true)"
+            [[ "$state" == healthy ]] && break
+            sleep 2
+          done
+          test "$state" = healthy
+          curl -fsS http://127.0.0.1:8788/health
+          curl -fsS -o /dev/null -H "Authorization: Bearer $key" http://127.0.0.1:8788/v1/models
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8788/v1/models)" = 401
+          curl -fsS -o /dev/null http://127.0.0.1:8788/dashboard
       - name: Export tested image
         shell: bash
         env:

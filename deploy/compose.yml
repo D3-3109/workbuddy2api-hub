@@ -6,7 +6,7 @@ services:
   gateway:
     image: wb2api:local
     build:
-      context: ../..
+      context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
     init: true

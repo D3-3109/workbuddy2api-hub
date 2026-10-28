@@ -1,6 +1,6 @@
-# GitHub Actions: Rust container
+# GitHub Actions: CI and container publishing
 
-Workflow: `.github/workflows/rust-docker.yml`, display name **Rust container**.
+Workflow: `.github/workflows/ci.yml`, display name **CI**.
 
 The Rust image is separate from the original Python image:
 
@@ -12,12 +12,12 @@ The repository path is derived dynamically from `github.repository` and lowercas
 
 ## Trigger and tags
 
-- Push to `rust-port`: test, build, container-smoke both architectures; publish `edge`, `rust-port`, and `sha-<full commit>`.
-- Pull request targeting `rust-port`: test/build only, no GHCR login or package write permission.
+- Push to `rust`: test, build, container-smoke both architectures; publish `edge` and `sha-<full commit>`. Documentation-only pushes (`docs/**`, `*.md`) are skipped.
+- Pull request targeting `rust`: test/build only, no GHCR login or package write permission.
 - Push `rust-v<workspace-version>`: publish the matching version tag and `sha-<full commit>` after verification. Version must match `Cargo.toml`.
-- Manual dispatch: `publish` defaults to true, but publishing is permitted only from `rust-port` or a `rust-v*` tag.
+- Manual dispatch: `publish` defaults to true, but publishing is permitted only from `rust` or a `rust-v*` tag.
 
-This does **not** create a GitHub Release. The inherited Python release workflows react to published releases regardless of tag prefix, so do not publish a Rust GitHub Release without first explicitly separating those old triggers. Do not use plain `v*` tags for Rust.
+This does **not** create a GitHub Release. The Python workflows on `main` react to *any* published release and to `v*` tags, so do not publish a GitHub Release for the Rust branch, and do not use plain `v*` tags for Rust.
 
 `edge` is a mutable alpha branch tag; use the commit tag or registry digest for reproducible deployment. No `latest` production-stability claim is made.
 
@@ -26,7 +26,7 @@ This does **not** create a GitHub Release. The inherited Python release workflow
 Each architecture runs natively (`ubuntu-24.04`, `ubuntu-24.04-arm`):
 
 1. Install Rust1.99.1 and native C/Perl build tools.
-2. Run formatting, the complete locked Cargo workspace tests, and build a local test executable.
+2. Run formatting, clippy with `-D warnings`, the complete locked Cargo workspace tests, and build a local test executable.
 3. Run both existing gateway and upstream-sync smoke suites using loopback fake upstreams.
 4. Build the real Alpine/musl image with the Dockerfile-specific source allowlist.
 5. Run `container_smoke.py` against that actual image: UID10001, read-only root, dropped capabilities, tmpfs data, CA bundle, authentication/panel API, dashboard, bounded clean shutdown.
@@ -50,14 +50,14 @@ After a successful publish:
 docker pull ghcr.io/d3-3109/workbuddy2api-hub-rust:edge
 ```
 
-For the existing Compose file, use the published-image override:
+Or use the root `docker-compose.yml`, which runs the published image without a source checkout (see the README):
 
 ```sh
-WB_RUST_IMAGE=ghcr.io/d3-3109/workbuddy2api-hub-rust:edge \
-  docker compose --env-file deploy/.env \
-  -f deploy/compose.yml -f deploy/compose.registry.yml \
-  up -d --no-build
+cp .env.example .env   # fill in API_KEY and WB_PANEL_PASSWORD
+docker compose up -d
 ```
+
+To build from source instead, use `deploy/compose.yml` (`docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build`), or add `deploy/compose.registry.yml` with `--no-build` to run the published image with that file.
 
 Set private `API_KEY` and nondefault `WB_PANEL_PASSWORD` first. The default published port remains `127.0.0.1:8788`; use an SSH tunnel or TLS reverse proxy. Named data volumes remain separate from the old Python deployment.
 

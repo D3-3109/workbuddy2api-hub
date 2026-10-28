@@ -1,0 +1,18 @@
+[package]
+name = "wbaccounts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Account model, pool selection, penalties, identity headers, upstream request builders"
+
+[dependencies]
+wbcore.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+flate2.workspace = true
+percent-encoding.workspace = true

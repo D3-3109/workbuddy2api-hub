@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "checks": [
+    "fixture structure and unique IDs",
+    "SSE representation",
+    "usage ordering and single stream ID",
+    "abort without DONE",
+    "pre-byte retry exactly once with single accounting row",
+    "restricted stop and wave hold dispatch",
+    "original module and suite SHA-256 unchanged",
+    "baseline Python syntax"
+  ],
+  "json_schema_validation": "structural checks against declared fields/kinds only; jsonschema package not installed",
+  "golden_case_count": 115,
+  "golden_sha256": "b59b9b9f2b9717cd134e88f2f284f83adbf58ae8d612db8746e521b6de6bb8f8",
+  "byte_identical_regeneration": true,
+  "regeneration_command": [
+    "python",
+    "-B",
+    "rust/tests/baseline/export_fixtures.py",
+    "--check"
+  ],
+  "kind_counts": {
+    "mutated_arg0": 26,
+    "return": 50,
+    "utf8_return": 1,
+    "sse": 7,
+    "aggregate": 3,
+    "handler_scenario": 3,
+    "map_counts": 4,
+    "account_scenario": 5,
+    "restriction_wave": 1,
+    "slot_scenario": 6,
+    "rate_limit_scenario": 4,
+    "dispatch_scenario": 4,
+    "response_slot_scenario": 1
+  },
+  "blocked_external_attempts": [
+    {
+      "event": "socket.getaddrinfo",
+      "detail": "openrouter.ai"
+    },
+    {
+      "event": "socket.getaddrinfo",
+      "detail": "openrouter.ai"
+    },
+    {
+      "event": "socket.getaddrinfo",
+      "detail": "openrouter.ai"
+    },
+    {
+      "event": "socket.getaddrinfo",
+      "detail": "openrouter.ai"
+    },
+    {
+      "event": "socket.getaddrinfo",
+      "detail": "openrouter.ai"
+    }
+  ],
+  "original_python_unchanged": true
+}

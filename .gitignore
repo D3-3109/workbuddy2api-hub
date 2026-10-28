@@ -1,0 +1,18 @@
+/target/
+/target-*/
+/dist/
+**/__pycache__/
+*.py[cod]
+/accounts/
+/usage/
+/deploy/.env
+/deploy/*.env
+!/deploy/*.env.example
+/tests/container-smoke-results*.json
+/tests/gateway-smoke-results*.json
+/tests/upstream-sync-smoke-results*.json
+/tests/results-pre-expectation-fix.json
+/tests/baseline/logs/
+/tests/baseline/results.json
+# Cargo.lock is intentionally tracked for reproducible --locked application builds.
+/bench/results/

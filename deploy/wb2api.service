@@ -1,0 +1,60 @@
+# Operator prerequisites (this unit does not install or download anything):
+# - Create the dedicated system user/group wb2api, with no login shell.
+# - Install the built binary as root-owned /usr/local/bin/wb2api, mode 0755.
+# - Provision /etc/wb2api/wb2api.env from wb2api.env.example, root-owned 0600.
+# - Install this unit, then explicitly enable/start it after reviewing settings.
+# Requires systemd with StateDirectory= and RestrictAddressFamilies= support.
+[Unit]
+Description=WorkBuddy Rust API gateway
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=wb2api
+Group=wb2api
+EnvironmentFile=/etc/wb2api/wb2api.env
+Environment=SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+WorkingDirectory=/var/lib/wb2api
+StateDirectory=wb2api/accounts wb2api/usage
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/local/bin/wb2api --host 127.0.0.1 --port 8788 --accounts-dir /var/lib/wb2api/accounts --usage-dir /var/lib/wb2api/usage
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wb2api
+
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/wb2api/accounts /var/lib/wb2api/usage
+LimitNOFILE=65536
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

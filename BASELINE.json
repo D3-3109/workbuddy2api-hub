@@ -1,0 +1,27 @@
+{
+  "repository": "https://github.com/ardeyouxipianyi/workbuddy2api-hub",
+  "commit": "477ba36ceea78ec4252c47a68e94a5a1612bab0b",
+  "python_version_label": "1.7.32",
+  "baseline_tag": "py-baseline-1.7.32",
+  "local_branch": "rust",
+  "rust_version": "0.1.1-alpha",
+  "runtime_target": "x86_64-unknown-linux-musl",
+  "tracks_upstream": false,
+  "publication_repository": "https://github.com/D3-3109/workbuddy2api-hub",
+  "publication_branch": "rust",
+  "upstream_sync": {
+    "commit": "4f7ae6f2efcae5e6ae85aefa732035206044514b",
+    "version": "1.8.0",
+    "scope": "selected-core-fixes",
+    "commits_reviewed": 18,
+    "source_snapshot_unchanged": true,
+    "report": "UPSTREAM_SYNC.md"
+  },
+  "python_branch": "rust-port",
+  "layout": "standalone: Rust workspace at repository root, Python reference kept on rust-port/main",
+  "vendored_assets": {
+    "assets/dashboard.html": "dashboard.html @ 477ba36 + 4f7ae6f fixes",
+    "assets/pricing.json": "pricing/pricing.json",
+    "tests/fixtures/pricing_tooltip": "tests/fixtures/pricing_tooltip"
+  }
+}

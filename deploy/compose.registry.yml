@@ -1,0 +1,5 @@
+# Merge after compose.yml and pass --no-build to use the tested GHCR image.
+services:
+  gateway:
+    image: "${WB_RUST_IMAGE:-ghcr.io/d3-3109/workbuddy2api-hub-rust:edge}"
+    pull_policy: always

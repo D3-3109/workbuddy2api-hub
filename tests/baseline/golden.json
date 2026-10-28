@@ -1,0 +1,6488 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "implementation": "unchanged original Python functions",
+    "source_sha256": {
+      "wb_proxy.py": "19802f3b69dce0b2be078fa611051f3b411ec341ce512bef7946273b4b013bc1",
+      "wb_accounts.py": "f959f4520c85229ea992c780afad88fcd312381dce2303578ff232db4d449d90",
+      "wb_settings.py": "54d98d2555212f164e44204c7f64b5c3e7918556acf4a26a9b6007fdb824afcc"
+    },
+    "determinism": {
+      "epoch_seconds": 1700000000.0,
+      "uuid4": "per case counter n starts at 1; hex = format(n, '016x') repeated twice",
+      "json_comparison": "object key order ignored; array order and strings exact; tuples exported as arrays",
+      "settings": "isolated empty settings; handler egress backoff disabled; recording captured in memory"
+    },
+    "constants": {
+      "FAIL_WINDOW": 600.0,
+      "BREAKER_THRESHOLD": 3,
+      "BREAKER_COOLDOWN": 1800.0,
+      "BREAKER_COOLDOWN_MAX": 21600.0,
+      "DEGRADE_THRESHOLD": 5,
+      "DEGRADE_COOLDOWN": 600.0,
+      "SOFT_RATE_BASE": 600.0,
+      "SOFT_RATE_MAX": 7200.0,
+      "SOFT_RATE_UNVERIFIED_BASE": 60.0,
+      "SOFT_RATE_UNVERIFIED_MAX": 600.0,
+      "RESTRICTED_ACCOUNT_COOLDOWN": 7200.0
+    }
+  },
+  "case_count": 115,
+  "cases": [
+    {
+      "id": "schema.empty",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": {}
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "id": "schema.null",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": null
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "id": "schema.list",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": []
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "id": "schema.string",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": "bad"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "id": "schema.bool",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": true
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "id": "schema.recursive",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": {
+              "type": "dict",
+              "required": [
+                "a",
+                null,
+                "a",
+                7,
+                ""
+              ],
+              "properties": {
+                "a": {
+                  "type": "int",
+                  "description": null
+                },
+                "b": {
+                  "type": "list",
+                  "items": [
+                    {
+                      "type": "str",
+                      "title": null
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                },
+                "c": {
+                  "anyOf": [
+                    {
+                      "type": "bool"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "$defs": {
+                "T": {
+                  "type": "dict",
+                  "properties": {
+                    "x": {
+                      "type": "float",
+                      "format": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "a",
+            "a",
+            "7"
+          ],
+          "properties": {
+            "a": {
+              "type": "integer"
+            },
+            "b": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "c": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "$defs": {
+            "T": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "schema.required_string",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": {
+              "properties": {
+                "x": {}
+              },
+              "required": "x"
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "properties": {
+            "x": {}
+          },
+          "required": [
+            "x"
+          ],
+          "type": "object"
+        }
+      }
+    },
+    {
+      "id": "schema.required_null",
+      "operation": "wb_proxy._normalize_tool_parameters",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "name": "f",
+            "parameters": {
+              "properties": {
+                "x": {}
+              },
+              "required": null
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "name": "f",
+        "parameters": {
+          "properties": {
+            "x": {}
+          },
+          "type": "object"
+        }
+      }
+    },
+    {
+      "id": "tools.legacy",
+      "operation": "wb_proxy.normalize_tools",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "functions": [
+              {
+                "name": "legacy",
+                "parameters": {}
+              }
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "legacy",
+              "parameters": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tools.empty",
+      "operation": "wb_proxy.normalize_tools",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": []
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {}
+    },
+    {
+      "id": "tools.flat",
+      "operation": "wb_proxy.normalize_tools",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": [
+              {
+                "name": "flat",
+                "parameters": {}
+              },
+              {
+                "type": "function",
+                "name": "f",
+                "parameters": null
+              }
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "flat",
+              "description": "",
+              "parameters": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "description": "",
+              "parameters": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "arguments.scalar_and_unicode",
+      "operation": "wb_proxy.sanitize_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "id": "c0",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": {
+                  "city": "北京"
+                }
+              }
+            },
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": null
+              }
+            },
+            {
+              "id": "c2",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{\"x\":1}"
+              }
+            },
+            {
+              "id": "c3",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": [
+                  1,
+                  "a"
+                ]
+              }
+            },
+            {
+              "id": "c4",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": 123
+              }
+            },
+            {
+              "id": "c5",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": true
+              }
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        {
+          "id": "c0",
+          "type": "function",
+          "function": {
+            "name": "f",
+            "arguments": "{\"city\": \"北京\"}"
+          }
+        },
+        {
+          "id": "c1",
+          "type": "function",
+          "function": {
+            "name": "f",
+            "arguments": "{}"
+          }
+        },
+        {
+          "id": "c2",
+          "type": "function",
+          "function": {
+            "name": "f",
+            "arguments": "{\"x\":1}"
+          }
+        },
+        {
+          "id": "c3",
+          "type": "function",
+          "function": {
+            "name": "f",
+            "arguments": "[1, \"a\"]"
+          }
+        },
+        {
+          "id": "c4",
+          "type": "function",
+          "function": {
+            "name": "f",
+            "arguments": "123"
+          }
+        },
+        {
+          "id": "c5",
+          "type": "function",
+          "function": {
+            "name": "f",
+            "arguments": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "choice.0",
+      "operation": "wb_proxy.normalize_tool_choice",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "parameters": {}
+                }
+              }
+            ],
+            "tool_choice": "none"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "parameters": {}
+            }
+          }
+        ],
+        "tool_choice": "none"
+      }
+    },
+    {
+      "id": "choice.1",
+      "operation": "wb_proxy.normalize_tool_choice",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "parameters": {}
+                }
+              }
+            ],
+            "tool_choice": {
+              "type": "none"
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "parameters": {}
+            }
+          }
+        ],
+        "tool_choice": "none"
+      }
+    },
+    {
+      "id": "choice.2",
+      "operation": "wb_proxy.normalize_tool_choice",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "parameters": {}
+                }
+              }
+            ],
+            "tool_choice": "auto"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "parameters": {}
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      }
+    },
+    {
+      "id": "choice.3",
+      "operation": "wb_proxy.normalize_tool_choice",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "parameters": {}
+                }
+              }
+            ],
+            "tool_choice": "required"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "parameters": {}
+            }
+          }
+        ],
+        "tool_choice": "required"
+      }
+    },
+    {
+      "id": "choice.4",
+      "operation": "wb_proxy.normalize_tool_choice",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "parameters": {}
+                }
+              }
+            ],
+            "tool_choice": {
+              "type": "function",
+              "function": {
+                "name": "f"
+              }
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "parameters": {}
+            }
+          }
+        ],
+        "tool_choice": "f"
+      }
+    },
+    {
+      "id": "stop.0",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": "END"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "stop": [
+          "END"
+        ]
+      }
+    },
+    {
+      "id": "stop.1",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": "\n\n"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "stop": [
+          "\n\n"
+        ]
+      }
+    },
+    {
+      "id": "stop.2",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": [
+              "END",
+              "",
+              7,
+              null,
+              "STOP"
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "stop": [
+          "END",
+          "STOP"
+        ]
+      }
+    },
+    {
+      "id": "stop.3",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": ""
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {}
+    },
+    {
+      "id": "stop.4",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": []
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {}
+    },
+    {
+      "id": "stop.5",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": null
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {}
+    },
+    {
+      "id": "stop.6",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": 7
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {}
+    },
+    {
+      "id": "stop.7",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "stop": true
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {}
+    },
+    {
+      "id": "stop.absent",
+      "operation": "wb_proxy.normalize_stop",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "model": "m"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "m"
+      }
+    },
+    {
+      "id": "pair.repack_interleaved",
+      "operation": "wb_proxy.repack_tool_result_blocks",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "user",
+              "content": "go"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                },
+                {
+                  "id": "b",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "a",
+              "content": "ok"
+            },
+            {
+              "role": "developer",
+              "content": "notice"
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "b",
+              "content": "ok"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "user",
+            "content": "go"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              },
+              {
+                "id": "b",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "a",
+            "content": "ok"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "b",
+            "content": "ok"
+          },
+          {
+            "role": "developer",
+            "content": "notice"
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "pair.repack_already_valid",
+      "operation": "wb_proxy.repack_tool_result_blocks",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "a",
+              "content": "ok"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "a",
+            "content": "ok"
+          }
+        ],
+        false
+      ]
+    },
+    {
+      "id": "pair.drop_unanswered",
+      "operation": "wb_proxy.cleanup_orphan_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                },
+                {
+                  "id": "b",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "a",
+              "content": "ok"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "a",
+            "content": "ok"
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "pair.drop_orphan_result",
+      "operation": "wb_proxy.cleanup_orphan_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "done"
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "ghost",
+              "content": "ok"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": "done"
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "pair.all_unanswered",
+      "operation": "wb_proxy.cleanup_orphan_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": "next"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": ""
+          },
+          {
+            "role": "user",
+            "content": "next"
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "pair.merge_parallel",
+      "operation": "wb_proxy.merge_adjacent_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "b",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "a",
+              "content": "ok"
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "b",
+              "content": "ok"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              },
+              {
+                "id": "b",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "a",
+            "content": "ok"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "b",
+            "content": "ok"
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "pair.merge_reasoning",
+      "operation": "wb_proxy.merge_adjacent_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ],
+              "reasoning_content": "first"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "b",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ],
+              "reasoning_content": "second"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              },
+              {
+                "id": "b",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ],
+            "reasoning_content": "first\nsecond"
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "pair.trailing_text",
+      "operation": "wb_proxy.merge_adjacent_tool_calls",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "a",
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": "done"
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "role": "assistant",
+            "content": "done",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          }
+        ],
+        true
+      ]
+    },
+    {
+      "id": "arguments.truncated.0",
+      "operation": "wb_proxy.is_truncated_arguments",
+      "kind": "return",
+      "input": {
+        "args": [
+          ""
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "arguments.truncated.1",
+      "operation": "wb_proxy.is_truncated_arguments",
+      "kind": "return",
+      "input": {
+        "args": [
+          "   "
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "arguments.truncated.2",
+      "operation": "wb_proxy.is_truncated_arguments",
+      "kind": "return",
+      "input": {
+        "args": [
+          "{\"a\":1}"
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "arguments.truncated.3",
+      "operation": "wb_proxy.is_truncated_arguments",
+      "kind": "return",
+      "input": {
+        "args": [
+          "null"
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "arguments.truncated.4",
+      "operation": "wb_proxy.is_truncated_arguments",
+      "kind": "return",
+      "input": {
+        "args": [
+          "{\"a\":"
+        ],
+        "kwargs": {}
+      },
+      "expected": true
+    },
+    {
+      "id": "arguments.truncated.5",
+      "operation": "wb_proxy.is_truncated_arguments",
+      "kind": "return",
+      "input": {
+        "args": [
+          "not json"
+        ],
+        "kwargs": {}
+      },
+      "expected": true
+    },
+    {
+      "id": "namespace.expand",
+      "operation": "wb_proxy.expand_namespace_tools",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "type": "namespace",
+              "name": "functions",
+              "tools": [
+                {
+                  "type": "custom",
+                  "name": "exec",
+                  "format": {
+                    "type": "grammar",
+                    "syntax": "lark",
+                    "definition": "start: /.*/s"
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "wait",
+                  "parameters": {}
+                }
+              ]
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "type": "custom",
+            "name": "exec",
+            "format": {
+              "type": "grammar",
+              "syntax": "lark",
+              "definition": "start: /.*/s"
+            }
+          },
+          {
+            "type": "function",
+            "name": "wait",
+            "description": "",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          }
+        ],
+        {
+          "exec": "functions",
+          "wait": "functions"
+        }
+      ]
+    },
+    {
+      "id": "namespace.duplicate",
+      "operation": "wb_proxy.expand_namespace_tools",
+      "kind": "return",
+      "input": {
+        "args": [
+          [
+            {
+              "type": "function",
+              "name": "wait",
+              "description": "top wins"
+            },
+            {
+              "type": "namespace",
+              "name": "functions",
+              "tools": [
+                {
+                  "type": "custom",
+                  "name": "exec",
+                  "format": {
+                    "type": "grammar",
+                    "syntax": "lark",
+                    "definition": "start: /.*/s"
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "wait",
+                  "parameters": {}
+                }
+              ]
+            }
+          ]
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        [
+          {
+            "type": "function",
+            "name": "wait",
+            "description": "top wins"
+          },
+          {
+            "type": "custom",
+            "name": "exec",
+            "format": {
+              "type": "grammar",
+              "syntax": "lark",
+              "definition": "start: /.*/s"
+            }
+          }
+        ],
+        {
+          "exec": "functions"
+        }
+      ]
+    },
+    {
+      "id": "namespace.resolve.exec",
+      "operation": "wb_proxy.resolve_namespaced_name",
+      "kind": "return",
+      "input": {
+        "args": [
+          "exec",
+          {
+            "exec": "functions"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        "exec",
+        "functions"
+      ]
+    },
+    {
+      "id": "namespace.resolve.functions__exec",
+      "operation": "wb_proxy.resolve_namespaced_name",
+      "kind": "return",
+      "input": {
+        "args": [
+          "functions__exec",
+          {
+            "exec": "functions"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        "exec",
+        "functions"
+      ]
+    },
+    {
+      "id": "namespace.resolve.functions::exec",
+      "operation": "wb_proxy.resolve_namespaced_name",
+      "kind": "return",
+      "input": {
+        "args": [
+          "functions::exec",
+          {
+            "exec": "functions"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        "exec",
+        "functions"
+      ]
+    },
+    {
+      "id": "namespace.resolve.unmapped",
+      "operation": "wb_proxy.resolve_namespaced_name",
+      "kind": "return",
+      "input": {
+        "args": [
+          "unmapped",
+          {
+            "exec": "functions"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": [
+        "unmapped",
+        ""
+      ]
+    },
+    {
+      "id": "responses.additional_namespace",
+      "operation": "wb_proxy.responses_to_chat",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "model": "m",
+            "input": [
+              {
+                "type": "additional_tools",
+                "tools": [
+                  {
+                    "type": "namespace",
+                    "name": "functions",
+                    "tools": [
+                      {
+                        "type": "custom",
+                        "name": "exec",
+                        "format": {
+                          "type": "grammar",
+                          "syntax": "lark",
+                          "definition": "start: /.*/s"
+                        }
+                      },
+                      {
+                        "type": "function",
+                        "name": "wait",
+                        "parameters": {}
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "content": "run pwd"
+              }
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "run pwd"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "exec",
+            "description": "This is a freeform tool. Put the COMPLETE raw payload into the single 'input' string parameter, verbatim. Do not wrap it in JSON, do not wrap it in markdown code fences, do not add commentary.\n\nGrammar:\nstart: /.*/s",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "string",
+                  "description": "Complete raw payload for this tool, verbatim."
+                }
+              },
+              "required": [
+                "input"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "wait",
+            "description": "",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          }
+        ],
+        "_namespace_map": {
+          "exec": "functions",
+          "wait": "functions"
+        }
+      }
+    },
+    {
+      "id": "responses.custom_history",
+      "operation": "wb_proxy.responses_to_chat",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "model": "m",
+            "input": [
+              {
+                "role": "user",
+                "content": "edit"
+              },
+              {
+                "type": "custom_tool_call",
+                "name": "exec",
+                "call_id": "c1",
+                "input": "pwd\n"
+              },
+              {
+                "type": "custom_tool_call_output",
+                "call_id": "c1",
+                "output": "done"
+              }
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "edit"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "c1",
+                "type": "function",
+                "function": {
+                  "name": "exec",
+                  "arguments": "{\"input\": \"pwd\\n\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "c1",
+            "content": "done"
+          }
+        ]
+      }
+    },
+    {
+      "id": "responses.reasoning_history",
+      "operation": "wb_proxy.responses_to_chat",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "model": "m",
+            "input": [
+              {
+                "type": "reasoning",
+                "summary": [
+                  {
+                    "type": "summary_text",
+                    "text": "think"
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "role": "assistant",
+                "content": "4"
+              }
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "assistant",
+            "content": "4",
+            "reasoning_content": "think"
+          }
+        ]
+      }
+    },
+    {
+      "id": "responses.orphan_image",
+      "operation": "wb_proxy.responses_to_chat",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "model": "m",
+            "input": [
+              {
+                "type": "function_call_output",
+                "output": [
+                  {
+                    "type": "input_image",
+                    "image_url": "data:image/png;base64,YQ=="
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "[Message from another task - treat this as a user instruction]"
+              },
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "data:image/png;base64,YQ=="
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "responses.custom_reply",
+      "operation": "wb_proxy.chat_to_response",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "id": "chatcmpl_fixture",
+            "model": "m",
+            "choices": [
+              {
+                "finish_reason": "tool_calls",
+                "message": {
+                  "role": "assistant",
+                  "content": "hello",
+                  "reasoning_content": "think",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "type": "function",
+                      "function": {
+                        "name": "exec",
+                        "arguments": "{\"input\":\"pwd\"}"
+                      }
+                    },
+                    {
+                      "id": "c2",
+                      "type": "function",
+                      "function": {
+                        "name": "wait",
+                        "arguments": "{\"ms\":100}"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "m",
+          [
+            "exec"
+          ],
+          {
+            "parallel_tool_calls": false,
+            "tool_choice": "required",
+            "tools": [
+              {
+                "type": "namespace",
+                "name": "functions",
+                "tools": [
+                  {
+                    "type": "custom",
+                    "name": "exec",
+                    "format": {
+                      "type": "grammar",
+                      "syntax": "lark",
+                      "definition": "start: /.*/s"
+                    }
+                  },
+                  {
+                    "type": "function",
+                    "name": "wait",
+                    "parameters": {}
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "exec": "functions",
+            "wait": "functions"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "id": "resp_00000000000000050000000000000005",
+        "object": "response",
+        "created_at": 1700000000,
+        "status": "completed",
+        "model": "m",
+        "output": [
+          {
+            "id": "rs_00000000000000010000000000000001",
+            "type": "reasoning",
+            "status": "completed",
+            "summary": [
+              {
+                "type": "summary_text",
+                "text": "think"
+              }
+            ]
+          },
+          {
+            "id": "ctc_00000000000000020000000000000002",
+            "type": "custom_tool_call",
+            "status": "completed",
+            "call_id": "c1",
+            "name": "exec",
+            "input": "pwd",
+            "namespace": "functions"
+          },
+          {
+            "id": "fc_00000000000000030000000000000003",
+            "type": "function_call",
+            "status": "completed",
+            "call_id": "c2",
+            "name": "wait",
+            "arguments": "{\"ms\":100}",
+            "namespace": "functions"
+          },
+          {
+            "id": "msg_00000000000000040000000000000004",
+            "type": "message",
+            "status": "completed",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "hello",
+                "annotations": []
+              }
+            ]
+          }
+        ],
+        "output_text": "hello",
+        "metadata": {},
+        "parallel_tool_calls": false,
+        "tool_choice": "required",
+        "tools": [
+          {
+            "type": "namespace",
+            "name": "functions",
+            "tools": [
+              {
+                "type": "custom",
+                "name": "exec",
+                "format": {
+                  "type": "grammar",
+                  "syntax": "lark",
+                  "definition": "start: /.*/s"
+                }
+              },
+              {
+                "type": "function",
+                "name": "wait",
+                "parameters": {}
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "input_tokens_details": {
+            "cached_tokens": 4
+          },
+          "output_tokens": 5,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 15
+        }
+      }
+    },
+    {
+      "id": "responses.length_reply",
+      "operation": "wb_proxy.chat_to_response",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "choices": [
+              {
+                "finish_reason": "length",
+                "message": {
+                  "content": "partial"
+                }
+              }
+            ]
+          },
+          "m"
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "id": "resp_00000000000000020000000000000002",
+        "object": "response",
+        "created_at": 1700000000,
+        "status": "incomplete",
+        "model": "m",
+        "output": [
+          {
+            "id": "msg_00000000000000010000000000000001",
+            "type": "message",
+            "status": "completed",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "partial",
+                "annotations": []
+              }
+            ]
+          }
+        ],
+        "output_text": "partial",
+        "metadata": {},
+        "parallel_tool_calls": true,
+        "tool_choice": "auto",
+        "tools": [],
+        "incomplete_details": {
+          "reason": "max_output_tokens"
+        }
+      }
+    },
+    {
+      "id": "anthropic.reply",
+      "operation": "wb_proxy.chat_to_messages",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "id": "chatcmpl_fixture",
+            "model": "m",
+            "choices": [
+              {
+                "finish_reason": "tool_calls",
+                "message": {
+                  "role": "assistant",
+                  "content": "hello",
+                  "reasoning_content": "think",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "type": "function",
+                      "function": {
+                        "name": "exec",
+                        "arguments": "{\"input\":\"pwd\"}"
+                      }
+                    },
+                    {
+                      "id": "c2",
+                      "type": "function",
+                      "function": {
+                        "name": "wait",
+                        "arguments": "{\"ms\":100}"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "id": "msg_chatcmpl_fixture",
+        "type": "message",
+        "role": "assistant",
+        "model": "m",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "think"
+          },
+          {
+            "type": "text",
+            "text": "hello"
+          },
+          {
+            "type": "tool_use",
+            "id": "c1",
+            "name": "exec",
+            "input": {
+              "input": "pwd"
+            }
+          },
+          {
+            "type": "tool_use",
+            "id": "c2",
+            "name": "wait",
+            "input": {
+              "ms": 100
+            }
+          }
+        ],
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 2,
+          "cache_read_input_tokens": 4,
+          "output_tokens": 5
+        }
+      }
+    },
+    {
+      "id": "anthropic.request",
+      "operation": "wb_proxy.messages_to_chat",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "model": "m",
+            "max_tokens": 128,
+            "stream": true,
+            "system": [
+              {
+                "type": "text",
+                "text": "sys-a"
+              },
+              {
+                "type": "text",
+                "text": "sys-b"
+              }
+            ],
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "look"
+                  },
+                  {
+                    "type": "image",
+                    "source": {
+                      "type": "base64",
+                      "media_type": "image/png",
+                      "data": "YQ=="
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "thinking",
+                    "thinking": "omit",
+                    "signature": "sig"
+                  },
+                  {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "Read",
+                    "input": {
+                      "path": "a"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": "ok"
+                  },
+                  {
+                    "type": "text",
+                    "text": "next"
+                  }
+                ]
+              }
+            ],
+            "tools": [
+              {
+                "name": "Read",
+                "input_schema": {
+                  "type": "object"
+                }
+              }
+            ],
+            "tool_choice": {
+              "type": "tool",
+              "name": "Read",
+              "disable_parallel_tool_use": true
+            },
+            "metadata": {
+              "user_id": "u"
+            },
+            "thinking": {
+              "type": "adaptive"
+            },
+            "output_config": {
+              "effort": "high"
+            },
+            "stop_sequences": [
+              "END"
+            ],
+            "top_k": 5
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "system",
+            "content": "sys-a\nsys-b"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "look"
+              },
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "data:image/png;base64,YQ=="
+                }
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "t1",
+                "type": "function",
+                "function": {
+                  "name": "Read",
+                  "arguments": "{\"path\":\"a\"}"
+                }
+              }
+            ],
+            "content": ""
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "t1",
+            "content": "ok"
+          },
+          {
+            "role": "user",
+            "content": "next"
+          }
+        ],
+        "max_tokens": 128,
+        "stream": true,
+        "stop": [
+          "END"
+        ],
+        "user": "u",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "Read",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "tool_choice": {
+          "type": "function",
+          "function": {
+            "name": "Read"
+          }
+        },
+        "parallel_tool_calls": false,
+        "reasoning_effort": "high"
+      }
+    },
+    {
+      "id": "anthropic.finish.stop",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          "stop"
+        ],
+        "kwargs": {}
+      },
+      "expected": "end_turn"
+    },
+    {
+      "id": "anthropic.finish.length",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          "length"
+        ],
+        "kwargs": {}
+      },
+      "expected": "max_tokens"
+    },
+    {
+      "id": "anthropic.finish.tool_calls",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          "tool_calls"
+        ],
+        "kwargs": {}
+      },
+      "expected": "tool_use"
+    },
+    {
+      "id": "anthropic.finish.function_call",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          "function_call"
+        ],
+        "kwargs": {}
+      },
+      "expected": "tool_use"
+    },
+    {
+      "id": "anthropic.finish.content_filter",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          "content_filter"
+        ],
+        "kwargs": {}
+      },
+      "expected": "refusal"
+    },
+    {
+      "id": "anthropic.finish.refusal",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          "refusal"
+        ],
+        "kwargs": {}
+      },
+      "expected": "refusal"
+    },
+    {
+      "id": "anthropic.finish.None",
+      "operation": "wb_proxy._anthropic_stop_reason",
+      "kind": "return",
+      "input": {
+        "args": [
+          null
+        ],
+        "kwargs": {}
+      },
+      "expected": "end_turn"
+    },
+    {
+      "id": "anthropic.effort.1000",
+      "operation": "wb_proxy.anthropic_effort_from_messages",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "thinking": {
+              "type": "enabled",
+              "budget_tokens": 1000
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": "low"
+    },
+    {
+      "id": "anthropic.effort.9000",
+      "operation": "wb_proxy.anthropic_effort_from_messages",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "thinking": {
+              "type": "enabled",
+              "budget_tokens": 9000
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": "medium"
+    },
+    {
+      "id": "anthropic.effort.17000",
+      "operation": "wb_proxy.anthropic_effort_from_messages",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "thinking": {
+              "type": "enabled",
+              "budget_tokens": 17000
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": "high"
+    },
+    {
+      "id": "anthropic.effort.40000",
+      "operation": "wb_proxy.anthropic_effort_from_messages",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "thinking": {
+              "type": "enabled",
+              "budget_tokens": 40000
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": "xhigh"
+    },
+    {
+      "id": "usage.aliases",
+      "operation": "wb_proxy.normalize_usage_cache_aliases",
+      "kind": "mutated_arg0",
+      "input": {
+        "args": [
+          {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+        "total_tokens": 15,
+        "prompt_cache_hit_tokens": 4,
+        "prompt_cache_write_tokens": 2,
+        "cache_read_input_tokens": 4,
+        "cached_tokens": 4,
+        "prompt_tokens_details": {
+          "cached_tokens": 4
+        }
+      }
+    },
+    {
+      "id": "usage.anthropic",
+      "operation": "wb_proxy._anthropic_usage",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 2,
+        "cache_read_input_tokens": 4,
+        "output_tokens": 5
+      }
+    },
+    {
+      "id": "usage.responses",
+      "operation": "wb_proxy._responses_usage",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "input_tokens": 10,
+        "input_tokens_details": {
+          "cached_tokens": 4
+        },
+        "output_tokens": 5,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 15
+      }
+    },
+    {
+      "id": "wire.compact_utf8",
+      "operation": "wb_proxy.encode_upstream_body",
+      "kind": "utf8_return",
+      "input": {
+        "args": [
+          {
+            "content": "中文"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": "{\"content\":\"中文\"}"
+    },
+    {
+      "id": "body.full_repairs",
+      "operation": "wb_proxy.build_upstream_body",
+      "kind": "return",
+      "input": {
+        "args": [
+          {
+            "model": "deepseek-v4.1-flash",
+            "messages": [
+              {
+                "role": "user",
+                "content": "go"
+              },
+              {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                  {
+                    "id": "a",
+                    "type": "function",
+                    "function": {
+                      "name": "f",
+                      "arguments": "{}"
+                    }
+                  },
+                  {
+                    "id": "b",
+                    "type": "function",
+                    "function": {
+                      "name": "f",
+                      "arguments": "{}"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "a",
+                "content": "ok"
+              },
+              {
+                "role": "developer",
+                "content": "notice"
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "b",
+                "content": "ok"
+              }
+            ],
+            "tools": [
+              {
+                "name": "f",
+                "parameters": {}
+              }
+            ],
+            "tool_choice": "none",
+            "stop": "END"
+          }
+        ],
+        "kwargs": {}
+      },
+      "expected": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a helpful assistant."
+          },
+          {
+            "role": "user",
+            "content": "go"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              },
+              {
+                "id": "b",
+                "type": "function",
+                "function": {
+                  "name": "f",
+                  "arguments": "{}"
+                }
+              }
+            ],
+            "reasoning_content": "",
+            "reasoning": " "
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "a",
+            "content": "ok"
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "b",
+            "content": "ok"
+          },
+          {
+            "role": "system",
+            "content": "notice"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "f",
+              "description": "",
+              "parameters": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        ],
+        "tool_choice": "none",
+        "stop": [
+          "END"
+        ],
+        "max_tokens": 128000,
+        "thinking": {
+          "type": "enabled"
+        },
+        "reasoning_effort": "high",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        }
+      }
+    },
+    {
+      "id": "responses.stream_text",
+      "operation": "wb_proxy.stream_responses_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": "hmm"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "hello"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "[DONE]"
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "response.created",
+            "data": {
+              "type": "response.created",
+              "sequence_number": 1,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.in_progress",
+            "data": {
+              "type": "response.in_progress",
+              "sequence_number": 2,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.output_item.added",
+            "data": {
+              "type": "response.output_item.added",
+              "sequence_number": 3,
+              "output_index": 0,
+              "item": {
+                "id": "rs_00000000000000030000000000000003",
+                "type": "reasoning",
+                "status": "in_progress",
+                "summary": [
+                  {
+                    "type": "summary_text",
+                    "text": ""
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "event": "response.reasoning_summary_part.added",
+            "data": {
+              "type": "response.reasoning_summary_part.added",
+              "sequence_number": 4,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "part": {
+                "type": "summary_text",
+                "text": ""
+              }
+            }
+          },
+          {
+            "event": "response.reasoning_summary_text.delta",
+            "data": {
+              "type": "response.reasoning_summary_text.delta",
+              "sequence_number": 5,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "delta": "hmm"
+            }
+          },
+          {
+            "event": "response.reasoning_summary_text.done",
+            "data": {
+              "type": "response.reasoning_summary_text.done",
+              "sequence_number": 6,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "text": "hmm"
+            }
+          },
+          {
+            "event": "response.reasoning_summary_part.done",
+            "data": {
+              "type": "response.reasoning_summary_part.done",
+              "sequence_number": 7,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "part": {
+                "type": "summary_text",
+                "text": "hmm"
+              }
+            }
+          },
+          {
+            "event": "response.output_item.done",
+            "data": {
+              "type": "response.output_item.done",
+              "sequence_number": 8,
+              "output_index": 0,
+              "item": {
+                "id": "rs_00000000000000030000000000000003",
+                "type": "reasoning",
+                "status": "completed",
+                "summary": [
+                  {
+                    "type": "summary_text",
+                    "text": "hmm"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "event": "response.output_item.added",
+            "data": {
+              "type": "response.output_item.added",
+              "sequence_number": 9,
+              "output_index": 1,
+              "item": {
+                "id": "msg_00000000000000020000000000000002",
+                "type": "message",
+                "status": "in_progress",
+                "role": "assistant",
+                "content": []
+              }
+            }
+          },
+          {
+            "event": "response.content_part.added",
+            "data": {
+              "type": "response.content_part.added",
+              "sequence_number": 10,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "part": {
+                "type": "output_text",
+                "text": "",
+                "annotations": []
+              }
+            }
+          },
+          {
+            "event": "response.output_text.delta",
+            "data": {
+              "type": "response.output_text.delta",
+              "sequence_number": 11,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "delta": "hello"
+            }
+          },
+          {
+            "event": "response.output_text.done",
+            "data": {
+              "type": "response.output_text.done",
+              "sequence_number": 12,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "text": "hello"
+            }
+          },
+          {
+            "event": "response.content_part.done",
+            "data": {
+              "type": "response.content_part.done",
+              "sequence_number": 13,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "part": {
+                "type": "output_text",
+                "text": "hello",
+                "annotations": []
+              }
+            }
+          },
+          {
+            "event": "response.output_item.done",
+            "data": {
+              "type": "response.output_item.done",
+              "sequence_number": 14,
+              "output_index": 1,
+              "item": {
+                "id": "msg_00000000000000020000000000000002",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "output_text",
+                    "text": "hello",
+                    "annotations": []
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "event": "response.completed",
+            "data": {
+              "type": "response.completed",
+              "sequence_number": 15,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "completed",
+                "model": "deepseek-v4.1-flash",
+                "output": [
+                  {
+                    "id": "rs_00000000000000030000000000000003",
+                    "type": "reasoning",
+                    "status": "completed",
+                    "summary": [
+                      {
+                        "type": "summary_text",
+                        "text": "hmm"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "msg_00000000000000020000000000000002",
+                    "type": "message",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": [
+                      {
+                        "type": "output_text",
+                        "text": "hello",
+                        "annotations": []
+                      }
+                    ]
+                  }
+                ],
+                "output_text": "hello",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {},
+                "usage": {
+                  "input_tokens": 10,
+                  "input_tokens_details": {
+                    "cached_tokens": 4
+                  },
+                  "output_tokens": 5,
+                  "output_tokens_details": {
+                    "reasoning_tokens": 0
+                  },
+                  "total_tokens": 15
+                }
+              }
+            }
+          }
+        ],
+        "holder": {
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "responses.stream_custom",
+      "operation": "wb_proxy.stream_responses_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "type": "function",
+                      "function": {
+                        "name": "exec",
+                        "arguments": "{\"input\":"
+                      },
+                      "index": 0
+                    }
+                  ]
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "index": 0,
+                      "function": {
+                        "arguments": "\"pwd\"}"
+                      }
+                    }
+                  ]
+                },
+                "finish_reason": "tool_calls"
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "[DONE]"
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null,
+          "custom_names": [
+            "exec"
+          ],
+          "namespace_map": {
+            "exec": "functions"
+          }
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "response.created",
+            "data": {
+              "type": "response.created",
+              "sequence_number": 1,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.in_progress",
+            "data": {
+              "type": "response.in_progress",
+              "sequence_number": 2,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.output_item.added",
+            "data": {
+              "type": "response.output_item.added",
+              "sequence_number": 3,
+              "output_index": 0,
+              "item": {
+                "id": "ctc_00000000000000040000000000000004",
+                "status": "in_progress",
+                "call_id": "c1",
+                "name": "exec",
+                "type": "custom_tool_call",
+                "input": "",
+                "namespace": "functions"
+              }
+            }
+          },
+          {
+            "event": "response.custom_tool_call_input.delta",
+            "data": {
+              "type": "response.custom_tool_call_input.delta",
+              "sequence_number": 4,
+              "output_index": 0,
+              "item_id": "ctc_00000000000000040000000000000004",
+              "call_id": "c1",
+              "delta": "\"pwd\"}"
+            }
+          },
+          {
+            "event": "response.custom_tool_call_input.done",
+            "data": {
+              "type": "response.custom_tool_call_input.done",
+              "sequence_number": 5,
+              "output_index": 0,
+              "item_id": "ctc_00000000000000040000000000000004",
+              "call_id": "c1",
+              "input": "pwd"
+            }
+          },
+          {
+            "event": "response.output_item.done",
+            "data": {
+              "type": "response.output_item.done",
+              "sequence_number": 6,
+              "output_index": 0,
+              "item": {
+                "id": "ctc_00000000000000040000000000000004",
+                "type": "custom_tool_call",
+                "status": "completed",
+                "call_id": "c1",
+                "name": "exec",
+                "input": "pwd",
+                "namespace": "functions"
+              }
+            }
+          },
+          {
+            "event": "response.completed",
+            "data": {
+              "type": "response.completed",
+              "sequence_number": 7,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "completed",
+                "model": "deepseek-v4.1-flash",
+                "output": [
+                  {
+                    "id": "ctc_00000000000000040000000000000004",
+                    "type": "custom_tool_call",
+                    "status": "completed",
+                    "call_id": "c1",
+                    "name": "exec",
+                    "input": "pwd",
+                    "namespace": "functions"
+                  }
+                ],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {},
+                "usage": {
+                  "input_tokens": 10,
+                  "input_tokens_details": {
+                    "cached_tokens": 4
+                  },
+                  "output_tokens": 5,
+                  "output_tokens_details": {
+                    "reasoning_tokens": 0
+                  },
+                  "total_tokens": 15
+                }
+              }
+            }
+          }
+        ],
+        "holder": {
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          },
+          "custom_names": [
+            "exec"
+          ],
+          "namespace_map": {
+            "exec": "functions"
+          }
+        }
+      }
+    },
+    {
+      "id": "responses.stream_truncated",
+      "operation": "wb_proxy.stream_responses_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "type": "function",
+                      "function": {
+                        "name": "f",
+                        "arguments": "{\"a\":"
+                      },
+                      "index": 0
+                    }
+                  ]
+                },
+                "finish_reason": "tool_calls"
+              }
+            ]
+          }
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "response.created",
+            "data": {
+              "type": "response.created",
+              "sequence_number": 1,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.in_progress",
+            "data": {
+              "type": "response.in_progress",
+              "sequence_number": 2,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.output_item.added",
+            "data": {
+              "type": "response.output_item.added",
+              "sequence_number": 3,
+              "output_index": 0,
+              "item": {
+                "id": "fc_00000000000000040000000000000004",
+                "status": "in_progress",
+                "call_id": "c1",
+                "name": "f",
+                "type": "function_call",
+                "arguments": ""
+              }
+            }
+          },
+          {
+            "event": "response.output_item.added",
+            "data": {
+              "type": "response.output_item.added",
+              "sequence_number": 4,
+              "output_index": 1,
+              "item": {
+                "id": "msg_00000000000000020000000000000002",
+                "type": "message",
+                "status": "in_progress",
+                "role": "assistant",
+                "content": []
+              }
+            }
+          },
+          {
+            "event": "response.content_part.added",
+            "data": {
+              "type": "response.content_part.added",
+              "sequence_number": 5,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "part": {
+                "type": "output_text",
+                "text": "",
+                "annotations": []
+              }
+            }
+          },
+          {
+            "event": "response.output_text.done",
+            "data": {
+              "type": "response.output_text.done",
+              "sequence_number": 6,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "text": ""
+            }
+          },
+          {
+            "event": "response.content_part.done",
+            "data": {
+              "type": "response.content_part.done",
+              "sequence_number": 7,
+              "item_id": "msg_00000000000000020000000000000002",
+              "output_index": 1,
+              "content_index": 0,
+              "part": {
+                "type": "output_text",
+                "text": "",
+                "annotations": []
+              }
+            }
+          },
+          {
+            "event": "response.output_item.done",
+            "data": {
+              "type": "response.output_item.done",
+              "sequence_number": 8,
+              "output_index": 1,
+              "item": {
+                "id": "msg_00000000000000020000000000000002",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": []
+              }
+            }
+          },
+          {
+            "event": "response.completed",
+            "data": {
+              "type": "response.completed",
+              "sequence_number": 9,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "incomplete",
+                "model": "deepseek-v4.1-flash",
+                "output": [
+                  {
+                    "id": "msg_00000000000000020000000000000002",
+                    "type": "message",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": []
+                  }
+                ],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          }
+        ],
+        "holder": {
+          "usage": null
+        }
+      }
+    },
+    {
+      "id": "responses.stream_reasoning_only",
+      "operation": "wb_proxy.stream_responses_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": "thinking"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+              }
+            ]
+          }
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "response.created",
+            "data": {
+              "type": "response.created",
+              "sequence_number": 1,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.in_progress",
+            "data": {
+              "type": "response.in_progress",
+              "sequence_number": 2,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "in_progress",
+                "model": "deepseek-v4.1-flash",
+                "output": [],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {}
+              }
+            }
+          },
+          {
+            "event": "response.output_item.added",
+            "data": {
+              "type": "response.output_item.added",
+              "sequence_number": 3,
+              "output_index": 0,
+              "item": {
+                "id": "rs_00000000000000030000000000000003",
+                "type": "reasoning",
+                "status": "in_progress",
+                "summary": [
+                  {
+                    "type": "summary_text",
+                    "text": ""
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "event": "response.reasoning_summary_part.added",
+            "data": {
+              "type": "response.reasoning_summary_part.added",
+              "sequence_number": 4,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "part": {
+                "type": "summary_text",
+                "text": ""
+              }
+            }
+          },
+          {
+            "event": "response.reasoning_summary_text.delta",
+            "data": {
+              "type": "response.reasoning_summary_text.delta",
+              "sequence_number": 5,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "delta": "thinking"
+            }
+          },
+          {
+            "event": "response.reasoning_summary_text.done",
+            "data": {
+              "type": "response.reasoning_summary_text.done",
+              "sequence_number": 6,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "text": "thinking"
+            }
+          },
+          {
+            "event": "response.reasoning_summary_part.done",
+            "data": {
+              "type": "response.reasoning_summary_part.done",
+              "sequence_number": 7,
+              "item_id": "rs_00000000000000030000000000000003",
+              "output_index": 0,
+              "summary_index": 0,
+              "part": {
+                "type": "summary_text",
+                "text": "thinking"
+              }
+            }
+          },
+          {
+            "event": "response.output_item.done",
+            "data": {
+              "type": "response.output_item.done",
+              "sequence_number": 8,
+              "output_index": 0,
+              "item": {
+                "id": "rs_00000000000000030000000000000003",
+                "type": "reasoning",
+                "status": "completed",
+                "summary": [
+                  {
+                    "type": "summary_text",
+                    "text": "thinking"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "event": "response.failed",
+            "data": {
+              "type": "response.failed",
+              "sequence_number": 9,
+              "response": {
+                "id": "resp_00000000000000010000000000000001",
+                "object": "response",
+                "created_at": 1700000000,
+                "status": "failed",
+                "model": "deepseek-v4.1-flash",
+                "output": [
+                  {
+                    "id": "rs_00000000000000030000000000000003",
+                    "type": "reasoning",
+                    "status": "completed",
+                    "summary": [
+                      {
+                        "type": "summary_text",
+                        "text": "thinking"
+                      }
+                    ]
+                  }
+                ],
+                "output_text": "",
+                "parallel_tool_calls": true,
+                "tool_choice": "auto",
+                "tools": [],
+                "metadata": {},
+                "usage": {
+                  "input_tokens": 1,
+                  "input_tokens_details": {
+                    "cached_tokens": 0
+                  },
+                  "output_tokens": 2,
+                  "output_tokens_details": {
+                    "reasoning_tokens": 2
+                  },
+                  "total_tokens": 3
+                },
+                "error": {
+                  "code": "empty_reasoning_only",
+                  "message": "upstream returned reasoning without output text; retry"
+                }
+              }
+            }
+          }
+        ],
+        "holder": {
+          "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 2,
+            "total_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 2
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "empty_reasoning": true
+        }
+      }
+    },
+    {
+      "id": "anthropic.stream_text",
+      "operation": "wb_proxy.stream_messages_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": "hmm"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "hello"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "[DONE]"
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "message_start",
+            "data": {
+              "message": {
+                "id": "msg_upstream-id",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "deepseek-v4.1-flash",
+                "stop_reason": null,
+                "stop_sequence": null,
+                "usage": {
+                  "input_tokens": 0,
+                  "output_tokens": 0
+                }
+              },
+              "type": "message_start"
+            }
+          },
+          {
+            "event": "content_block_start",
+            "data": {
+              "index": 0,
+              "content_block": {
+                "type": "thinking",
+                "thinking": ""
+              },
+              "type": "content_block_start"
+            }
+          },
+          {
+            "event": "content_block_delta",
+            "data": {
+              "index": 0,
+              "delta": {
+                "type": "thinking_delta",
+                "thinking": "hmm"
+              },
+              "type": "content_block_delta"
+            }
+          },
+          {
+            "event": "content_block_stop",
+            "data": {
+              "index": 0,
+              "type": "content_block_stop"
+            }
+          },
+          {
+            "event": "content_block_start",
+            "data": {
+              "index": 1,
+              "content_block": {
+                "type": "text",
+                "text": ""
+              },
+              "type": "content_block_start"
+            }
+          },
+          {
+            "event": "content_block_delta",
+            "data": {
+              "index": 1,
+              "delta": {
+                "type": "text_delta",
+                "text": "hello"
+              },
+              "type": "content_block_delta"
+            }
+          },
+          {
+            "event": "content_block_stop",
+            "data": {
+              "index": 1,
+              "type": "content_block_stop"
+            }
+          },
+          {
+            "event": "message_delta",
+            "data": {
+              "delta": {
+                "stop_reason": "end_turn",
+                "stop_sequence": null
+              },
+              "usage": {
+                "input_tokens": 4,
+                "cache_creation_input_tokens": 2,
+                "cache_read_input_tokens": 4,
+                "output_tokens": 5
+              },
+              "type": "message_delta"
+            }
+          },
+          {
+            "event": "message_stop",
+            "data": {
+              "type": "message_stop"
+            }
+          }
+        ],
+        "holder": {
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "anthropic.stream_tool",
+      "operation": "wb_proxy.stream_messages_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "type": "function",
+                      "function": {
+                        "name": "exec",
+                        "arguments": "{\"input\":"
+                      },
+                      "index": 0
+                    }
+                  ]
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "index": 0,
+                      "function": {
+                        "arguments": "\"pwd\"}"
+                      }
+                    }
+                  ]
+                },
+                "finish_reason": "tool_calls"
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "[DONE]"
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "message_start",
+            "data": {
+              "message": {
+                "id": "msg_upstream-id",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "deepseek-v4.1-flash",
+                "stop_reason": null,
+                "stop_sequence": null,
+                "usage": {
+                  "input_tokens": 0,
+                  "output_tokens": 0
+                }
+              },
+              "type": "message_start"
+            }
+          },
+          {
+            "event": "content_block_start",
+            "data": {
+              "index": 0,
+              "content_block": {
+                "type": "tool_use",
+                "id": "c1",
+                "name": "exec",
+                "input": {}
+              },
+              "type": "content_block_start"
+            }
+          },
+          {
+            "event": "content_block_delta",
+            "data": {
+              "index": 0,
+              "delta": {
+                "type": "input_json_delta",
+                "partial_json": "{\"input\":"
+              },
+              "type": "content_block_delta"
+            }
+          },
+          {
+            "event": "content_block_delta",
+            "data": {
+              "index": 0,
+              "delta": {
+                "type": "input_json_delta",
+                "partial_json": "\"pwd\"}"
+              },
+              "type": "content_block_delta"
+            }
+          },
+          {
+            "event": "content_block_stop",
+            "data": {
+              "index": 0,
+              "type": "content_block_stop"
+            }
+          },
+          {
+            "event": "message_delta",
+            "data": {
+              "delta": {
+                "stop_reason": "tool_use",
+                "stop_sequence": null
+              },
+              "usage": {
+                "input_tokens": 4,
+                "cache_creation_input_tokens": 2,
+                "cache_read_input_tokens": 4,
+                "output_tokens": 5
+              },
+              "type": "message_delta"
+            }
+          },
+          {
+            "event": "message_stop",
+            "data": {
+              "type": "message_stop"
+            }
+          }
+        ],
+        "holder": {
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_write_tokens": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "anthropic.stream_error",
+      "operation": "wb_proxy.stream_messages_events",
+      "kind": "sse",
+      "input": {
+        "chunks": [
+          {
+            "error": {
+              "message": "boom"
+            }
+          }
+        ],
+        "model": "deepseek-v4.1-flash",
+        "holder": {
+          "usage": null
+        }
+      },
+      "expected": {
+        "frames": [
+          {
+            "event": "error",
+            "data": {
+              "error": {
+                "type": "api_error",
+                "message": "boom"
+              },
+              "type": "error"
+            }
+          }
+        ],
+        "holder": {
+          "usage": null
+        }
+      }
+    },
+    {
+      "id": "aggregate.text",
+      "operation": "wb_proxy.aggregate_stream",
+      "kind": "aggregate",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": "hmm"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "hello"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "[DONE]"
+        ],
+        "model": "deepseek-v4.1-flash",
+        "resp_id": null
+      },
+      "expected": {
+        "id": "upstream-id",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "deepseek-v4.1-flash",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "hello",
+              "reasoning_content": "hmm"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "total_tokens": 15,
+          "prompt_cache_hit_tokens": 4,
+          "prompt_cache_write_tokens": 2,
+          "cache_read_input_tokens": 4,
+          "cached_tokens": 4,
+          "prompt_tokens_details": {
+            "cached_tokens": 4
+          }
+        },
+        "elapsed_ms": 0,
+        "first_chunk_at": 1700000000.0
+      }
+    },
+    {
+      "id": "aggregate.tool",
+      "operation": "wb_proxy.aggregate_stream",
+      "kind": "aggregate",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "type": "function",
+                      "function": {
+                        "name": "exec",
+                        "arguments": "{\"input\":"
+                      },
+                      "index": 0
+                    }
+                  ]
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "index": 0,
+                      "function": {
+                        "arguments": "\"pwd\"}"
+                      }
+                    }
+                  ]
+                },
+                "finish_reason": "tool_calls"
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          "[DONE]"
+        ],
+        "model": "deepseek-v4.1-flash",
+        "resp_id": null
+      },
+      "expected": {
+        "id": "upstream-id",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "deepseek-v4.1-flash",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "type": "function",
+                  "function": {
+                    "name": "exec",
+                    "arguments": "{\"input\":\"pwd\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "total_tokens": 15,
+          "prompt_cache_hit_tokens": 4,
+          "prompt_cache_write_tokens": 2,
+          "cache_read_input_tokens": 4,
+          "cached_tokens": 4,
+          "prompt_tokens_details": {
+            "cached_tokens": 4
+          }
+        },
+        "elapsed_ms": 0,
+        "first_chunk_at": 1700000000.0
+      }
+    },
+    {
+      "id": "aggregate.truncated",
+      "operation": "wb_proxy.aggregate_stream",
+      "kind": "aggregate",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "tool_calls": [
+                    {
+                      "id": "cut",
+                      "type": "function",
+                      "function": {
+                        "name": "f",
+                        "arguments": "{\"a\":"
+                      },
+                      "index": 0
+                    }
+                  ]
+                },
+                "finish_reason": "length"
+              }
+            ]
+          }
+        ],
+        "model": "deepseek-v4.1-flash",
+        "resp_id": null
+      },
+      "expected": {
+        "id": "upstream-id",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "deepseek-v4.1-flash",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": ""
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "elapsed_ms": 0,
+        "first_chunk_at": 1700000000.0
+      }
+    },
+    {
+      "id": "chat.stream_usage_single_id",
+      "operation": "wb_proxy.Handler._chat_stream_response",
+      "kind": "handler_scenario",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "role": "assistant",
+                  "content": ""
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": "think"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "Hello"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": null
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2
+            }
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+              }
+            ]
+          },
+          "[DONE]"
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "headers": [
+          [
+            "Content-Type",
+            "text/event-stream; charset=utf-8"
+          ],
+          [
+            "Cache-Control",
+            "no-cache"
+          ],
+          [
+            "Connection",
+            "close"
+          ],
+          [
+            "Access-Control-Allow-Origin",
+            "*"
+          ]
+        ],
+        "frames": [
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000001",
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {
+                    "role": "assistant",
+                    "content": ""
+                  },
+                  "finish_reason": null
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000001",
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {
+                    "reasoning_content": "think"
+                  },
+                  "finish_reason": null
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000001",
+              "object": "chat.completion.chunk",
+              "created": 1700000000,
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {
+                    "content": "Hello"
+                  },
+                  "finish_reason": null
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000001",
+              "object": "chat.completion.chunk",
+              "created": 1700000000,
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {},
+                  "finish_reason": "stop"
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000001",
+              "object": "chat.completion.chunk",
+              "created": 1700000000,
+              "model": "deepseek-v4.1-flash",
+              "choices": [],
+              "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+                "prompt_cache_hit_tokens": 4,
+                "prompt_cache_write_tokens": 2,
+                "cache_read_input_tokens": 4,
+                "cached_tokens": 4,
+                "prompt_tokens_details": {
+                  "cached_tokens": 4
+                }
+              }
+            }
+          },
+          {
+            "event": null,
+            "data": "[DONE]"
+          }
+        ],
+        "records": [
+          {
+            "kind": "usage",
+            "model": "deepseek-v4.1-flash",
+            "usage": {
+              "prompt_tokens": 10,
+              "completion_tokens": 5,
+              "total_tokens": 15,
+              "prompt_cache_hit_tokens": 4,
+              "prompt_cache_write_tokens": 2,
+              "cache_read_input_tokens": 4,
+              "cached_tokens": 4,
+              "prompt_tokens_details": {
+                "cached_tokens": 4
+              }
+            },
+            "details": {
+              "stream": true,
+              "elapsed_ms": 0,
+              "ttft_ms": 0,
+              "gen_ms": 0,
+              "fp": "fixture-fp",
+              "account": "fixture-account",
+              "key": null,
+              "effort": null
+            }
+          }
+        ],
+        "reopen_count": 0
+      }
+    },
+    {
+      "id": "chat.stream_abort",
+      "operation": "wb_proxy.Handler._chat_stream_response",
+      "kind": "handler_scenario",
+      "input": {
+        "chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "partial answer"
+                },
+                "finish_reason": null
+              }
+            ]
+          }
+        ],
+        "abort": true
+      },
+      "expected": {
+        "status": 200,
+        "headers": [
+          [
+            "Content-Type",
+            "text/event-stream; charset=utf-8"
+          ],
+          [
+            "Cache-Control",
+            "no-cache"
+          ],
+          [
+            "Connection",
+            "close"
+          ],
+          [
+            "Access-Control-Allow-Origin",
+            "*"
+          ]
+        ],
+        "frames": [
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000001",
+              "object": "chat.completion.chunk",
+              "created": 1700000000,
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {
+                    "content": "partial answer"
+                  },
+                  "finish_reason": null
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": {
+              "error": {
+                "message": "upstream stream aborted: IncompleteRead(0 bytes read, 4096 more expected)",
+                "type": "upstream_error",
+                "param": null,
+                "code": "upstream_stream_error"
+              }
+            }
+          }
+        ],
+        "records": [
+          {
+            "kind": "error",
+            "model": "deepseek-v4.1-flash",
+            "status": 502,
+            "message": "stream aborted: IncompleteRead(0 bytes read, 4096 more expected)",
+            "details": {
+              "elapsed_ms": 0,
+              "account": "fixture-account",
+              "usage": null,
+              "stream": true,
+              "ttft_ms": 0,
+              "gen_ms": 0,
+              "fp": "fixture-fp",
+              "outcome": "upstream_aborted",
+              "key": null
+            }
+          }
+        ],
+        "reopen_count": 0
+      }
+    },
+    {
+      "id": "chat.stream_prebyte_retry",
+      "operation": "wb_proxy.Handler._chat_stream_response",
+      "kind": "handler_scenario",
+      "input": {
+        "chunks": [],
+        "abort": true,
+        "retry_chunks": [
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "content": "retry answer"
+                },
+                "finish_reason": null
+              }
+            ]
+          },
+          {
+            "id": "upstream-id",
+            "model": "deepseek-v4.1-flash",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+              }
+            ]
+          },
+          "[DONE]"
+        ]
+      },
+      "expected": {
+        "status": 200,
+        "headers": [
+          [
+            "Content-Type",
+            "text/event-stream; charset=utf-8"
+          ],
+          [
+            "Cache-Control",
+            "no-cache"
+          ],
+          [
+            "Connection",
+            "close"
+          ],
+          [
+            "Access-Control-Allow-Origin",
+            "*"
+          ]
+        ],
+        "frames": [
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000002",
+              "object": "chat.completion.chunk",
+              "created": 1700000000,
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {
+                    "content": "retry answer"
+                  },
+                  "finish_reason": null
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": {
+              "id": "chatcmpl-wb-0000000000000002",
+              "object": "chat.completion.chunk",
+              "created": 1700000000,
+              "model": "deepseek-v4.1-flash",
+              "choices": [
+                {
+                  "index": 0,
+                  "delta": {},
+                  "finish_reason": "stop"
+                }
+              ]
+            }
+          },
+          {
+            "event": null,
+            "data": "[DONE]"
+          }
+        ],
+        "records": [
+          {
+            "kind": "usage",
+            "model": "deepseek-v4.1-flash",
+            "usage": {
+              "prompt_tokens": 1,
+              "completion_tokens": 3,
+              "total_tokens": 4,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              },
+              "prompt_tokens_details": {
+                "cached_tokens": 0
+              }
+            },
+            "details": {
+              "stream": true,
+              "elapsed_ms": 0,
+              "ttft_ms": 0,
+              "gen_ms": 0,
+              "fp": "fixture-fp",
+              "account": "fixture-account",
+              "key": null,
+              "effort": null
+            }
+          }
+        ],
+        "reopen_count": 1
+      }
+    },
+    {
+      "id": "backoff.soft_backoff",
+      "operation": "wb_accounts.soft_backoff",
+      "kind": "map_counts",
+      "input": {
+        "counts": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          50
+        ]
+      },
+      "expected": [
+        600.0,
+        600.0,
+        1200.0,
+        2400.0,
+        4800.0,
+        7200.0,
+        7200.0,
+        7200.0,
+        7200.0
+      ]
+    },
+    {
+      "id": "backoff.unverified_soft_backoff",
+      "operation": "wb_accounts.unverified_soft_backoff",
+      "kind": "map_counts",
+      "input": {
+        "counts": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          50
+        ]
+      },
+      "expected": [
+        60.0,
+        60.0,
+        120.0,
+        240.0,
+        480.0,
+        600.0,
+        600.0,
+        600.0,
+        600.0
+      ]
+    },
+    {
+      "id": "backoff.breaker_backoff",
+      "operation": "wb_accounts.breaker_backoff",
+      "kind": "map_counts",
+      "input": {
+        "counts": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          50
+        ]
+      },
+      "expected": [
+        1800.0,
+        1800.0,
+        1800.0,
+        1800.0,
+        3600.0,
+        7200.0,
+        14400.0,
+        21600.0,
+        21600.0
+      ]
+    },
+    {
+      "id": "backoff.degrade_backoff",
+      "operation": "wb_accounts.degrade_backoff",
+      "kind": "map_counts",
+      "input": {
+        "counts": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          50
+        ]
+      },
+      "expected": [
+        600.0,
+        600.0,
+        600.0,
+        600.0,
+        600.0,
+        600.0,
+        1200.0,
+        7200.0,
+        7200.0
+      ]
+    },
+    {
+      "id": "account.breaker_success",
+      "operation": "wb_accounts.Account",
+      "kind": "account_scenario",
+      "input": {
+        "steps": [
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ]
+          },
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ]
+          },
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ]
+          },
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ]
+          },
+          {
+            "method": "note_success"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 1,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 2,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 1700001800.0,
+          "state": {
+            "fails": 3,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 1700001800.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 1800.0
+        },
+        {
+          "return": 1700003600.0,
+          "state": {
+            "fails": 4,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 1700003600.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 3600.0
+        },
+        {
+          "return": null,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 0.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        }
+      ]
+    },
+    {
+      "id": "account.failure_window",
+      "operation": "wb_accounts.Account",
+      "kind": "account_scenario",
+      "input": {
+        "steps": [
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ]
+          },
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ]
+          },
+          {
+            "method": "note_failure",
+            "args": [
+              "HTTP 502"
+            ],
+            "advance": 601
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 1,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 2,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 1,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000601.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "HTTP 502",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        }
+      ]
+    },
+    {
+      "id": "account.unknown_degrade",
+      "operation": "wb_accounts.Account",
+      "kind": "account_scenario",
+      "input": {
+        "steps": [
+          {
+            "method": "note_unknown_failure",
+            "args": [
+              "transport"
+            ]
+          },
+          {
+            "method": "note_unknown_failure",
+            "args": [
+              "transport"
+            ]
+          },
+          {
+            "method": "note_unknown_failure",
+            "args": [
+              "transport"
+            ]
+          },
+          {
+            "method": "note_unknown_failure",
+            "args": [
+              "transport"
+            ]
+          },
+          {
+            "method": "note_unknown_failure",
+            "args": [
+              "transport"
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 1,
+            "degrade_count": 1,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "transport",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 2,
+            "degrade_count": 2,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "transport",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 3,
+            "degrade_count": 3,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 1700001800.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "transport",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 1800.0
+        },
+        {
+          "return": 0.0,
+          "state": {
+            "fails": 4,
+            "degrade_count": 4,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 1700003600.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "transport",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 3600.0
+        },
+        {
+          "return": 1700000600.0,
+          "state": {
+            "fails": 5,
+            "degrade_count": 5,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 1700000000.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 1700007200.0,
+            "degrade_until": 1700000600.0,
+            "restricted_until": 0.0,
+            "last_error": "transport",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 7200.0
+        }
+      ]
+    },
+    {
+      "id": "account.independent_soft_ladders",
+      "operation": "wb_accounts.Account",
+      "kind": "account_scenario",
+      "input": {
+        "steps": [
+          {
+            "method": "note_unscoped_rate",
+            "args": [
+              "m"
+            ]
+          },
+          {
+            "method": "note_unscoped_rate",
+            "args": [
+              "m"
+            ]
+          },
+          {
+            "method": "note_soft_rate",
+            "args": [
+              "account soft rate"
+            ]
+          },
+          {
+            "method": "note_soft_rate",
+            "args": [
+              "account soft rate"
+            ]
+          },
+          {
+            "method": "note_success"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": 60.0,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 1,
+            "last_fail_at": 0.0,
+            "last_soft_at": 1700000000.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 120.0,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 2,
+            "last_fail_at": 0.0,
+            "last_soft_at": 1700000000.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        },
+        {
+          "return": 600.0,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 1,
+            "unscoped_streak": 2,
+            "last_fail_at": 0.0,
+            "last_soft_at": 1700000000.0,
+            "cooldown_until": 1700000600.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "account soft rate",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 600.0
+        },
+        {
+          "return": 1200.0,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 2,
+            "unscoped_streak": 2,
+            "last_fail_at": 0.0,
+            "last_soft_at": 1700000000.0,
+            "cooldown_until": 1700001200.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "account soft rate",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 1200.0
+        },
+        {
+          "return": null,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 0.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        }
+      ]
+    },
+    {
+      "id": "account.restriction_clear_success",
+      "operation": "wb_accounts.Account",
+      "kind": "account_scenario",
+      "input": {
+        "steps": [
+          {
+            "method": "note_restricted",
+            "args": [
+              "{\"code\":11140}"
+            ]
+          },
+          {
+            "method": "note_restricted",
+            "advance": 60
+          },
+          {
+            "method": "clear_error"
+          },
+          {
+            "method": "note_success"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": 1700007200.0,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 0.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 1700007200.0,
+            "last_error": "HTTP 403 (account restricted)",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 7200.0
+        },
+        {
+          "return": 1700007200.0,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 0.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 1700007200.0,
+            "last_error": "HTTP 403 (account restricted)",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 7140.0
+        },
+        {
+          "return": null,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 0.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 1700007200.0,
+            "last_error": "",
+            "model_cooldowns": {}
+          },
+          "ready": false,
+          "throttle_wait": 7140.0
+        },
+        {
+          "return": null,
+          "state": {
+            "fails": 0,
+            "degrade_count": 0,
+            "soft_streak": 0,
+            "unscoped_streak": 0,
+            "last_fail_at": 0.0,
+            "last_soft_at": 0.0,
+            "cooldown_until": 0.0,
+            "breaker_until": 0.0,
+            "degrade_until": 0.0,
+            "restricted_until": 0.0,
+            "last_error": "",
+            "model_cooldowns": {}
+          },
+          "ready": true,
+          "throttle_wait": 0.0
+        }
+      ]
+    },
+    {
+      "id": "restriction.detect.0",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          "{\"code\":11140}"
+        ],
+        "kwargs": {}
+      },
+      "expected": true
+    },
+    {
+      "id": "restriction.detect.1",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          "{\"code\":\"11140\"}"
+        ],
+        "kwargs": {}
+      },
+      "expected": true
+    },
+    {
+      "id": "restriction.detect.2",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          "{\"requestId\":\"11140abcdef\"}"
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "restriction.detect.3",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          "{\"code\":10001,\"msg\":\"content rejected\"}"
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "restriction.detect.4",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          "unusual activity"
+        ],
+        "kwargs": {}
+      },
+      "expected": true
+    },
+    {
+      "id": "restriction.detect.5",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          ""
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "restriction.detect.6",
+      "operation": "wb_proxy.restriction_is_account_level",
+      "kind": "return",
+      "input": {
+        "args": [
+          null
+        ],
+        "kwargs": {}
+      },
+      "expected": false
+    },
+    {
+      "id": "restriction.wave_uid_dedup",
+      "operation": "wb_proxy.note_account_restriction",
+      "kind": "restriction_wave",
+      "input": {
+        "events": [
+          {
+            "realm": "intl",
+            "uid": "a",
+            "offset": 0
+          },
+          {
+            "realm": "intl",
+            "uid": "a",
+            "offset": 1
+          },
+          {
+            "realm": "cn",
+            "uid": "b",
+            "offset": 2
+          },
+          {
+            "realm": "intl",
+            "uid": "b",
+            "offset": 3
+          }
+        ]
+      },
+      "expected": [
+        {
+          "until": 0.0,
+          "remaining": 0.0
+        },
+        {
+          "until": 0.0,
+          "remaining": 0.0
+        },
+        {
+          "until": 0.0,
+          "remaining": 0.0
+        },
+        {
+          "until": 1700001803.0,
+          "remaining": 1800.0
+        }
+      ]
+    },
+    {
+      "id": "concurrency.account.0",
+      "operation": "wb_proxy.account_slots",
+      "kind": "slot_scenario",
+      "input": {
+        "scope": "account",
+        "limit": 0,
+        "actions": [
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "b"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "b"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": true,
+          "inflight": {}
+        },
+        {
+          "return": true,
+          "inflight": {}
+        },
+        {
+          "return": true,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": true,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    },
+    {
+      "id": "concurrency.account.1",
+      "operation": "wb_proxy.account_slots",
+      "kind": "slot_scenario",
+      "input": {
+        "scope": "account",
+        "limit": 1,
+        "actions": [
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "b"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "b"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": true,
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": false,
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": true,
+          "inflight": {
+            "a": 1,
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": true,
+          "inflight": {
+            "b": 1,
+            "a": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    },
+    {
+      "id": "concurrency.account.2",
+      "operation": "wb_proxy.account_slots",
+      "kind": "slot_scenario",
+      "input": {
+        "scope": "account",
+        "limit": 2,
+        "actions": [
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "b"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "b"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": true,
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": true,
+          "inflight": {
+            "a": 2
+          }
+        },
+        {
+          "return": true,
+          "inflight": {
+            "a": 2,
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "a": 1,
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": true,
+          "inflight": {
+            "b": 1,
+            "a": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    },
+    {
+      "id": "concurrency.key.0",
+      "operation": "wb_proxy.key_slots",
+      "kind": "slot_scenario",
+      "input": {
+        "scope": "key",
+        "limit": 0,
+        "actions": [
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "b"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "b"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": [
+            true,
+            0,
+            0
+          ],
+          "inflight": {}
+        },
+        {
+          "return": [
+            true,
+            0,
+            0
+          ],
+          "inflight": {}
+        },
+        {
+          "return": [
+            true,
+            0,
+            0
+          ],
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": [
+            true,
+            0,
+            0
+          ],
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    },
+    {
+      "id": "concurrency.key.1",
+      "operation": "wb_proxy.key_slots",
+      "kind": "slot_scenario",
+      "input": {
+        "scope": "key",
+        "limit": 1,
+        "actions": [
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "b"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "b"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": [
+            true,
+            1,
+            1
+          ],
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": [
+            false,
+            1,
+            1
+          ],
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": [
+            true,
+            1,
+            1
+          ],
+          "inflight": {
+            "a": 1,
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": [
+            true,
+            1,
+            1
+          ],
+          "inflight": {
+            "b": 1,
+            "a": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    },
+    {
+      "id": "concurrency.key.2",
+      "operation": "wb_proxy.key_slots",
+      "kind": "slot_scenario",
+      "input": {
+        "scope": "key",
+        "limit": 2,
+        "actions": [
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "b"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "acquire",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "a"
+          },
+          {
+            "op": "release",
+            "id": "b"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "return": [
+            true,
+            1,
+            2
+          ],
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": [
+            true,
+            2,
+            2
+          ],
+          "inflight": {
+            "a": 2
+          }
+        },
+        {
+          "return": [
+            true,
+            1,
+            2
+          ],
+          "inflight": {
+            "a": 2,
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "a": 1,
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": [
+            true,
+            1,
+            2
+          ],
+          "inflight": {
+            "b": 1,
+            "a": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "b": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    },
+    {
+      "id": "rate_limit.classify.0",
+      "operation": "wb_proxy.rate_limit_classification",
+      "kind": "rate_limit_scenario",
+      "input": {
+        "detail": "usage exceeds frequency limit"
+      },
+      "expected": {
+        "soft_shape": true,
+        "code": null,
+        "reset_at": null,
+        "account_level": false
+      }
+    },
+    {
+      "id": "rate_limit.classify.1",
+      "operation": "wb_proxy.rate_limit_classification",
+      "kind": "rate_limit_scenario",
+      "input": {
+        "detail": "{\"code\":14003,\"msg\":\"too many requests\",\"accountId\":\"x\"}"
+      },
+      "expected": {
+        "soft_shape": true,
+        "code": 14003,
+        "reset_at": null,
+        "account_level": false
+      }
+    },
+    {
+      "id": "rate_limit.classify.2",
+      "operation": "wb_proxy.rate_limit_classification",
+      "kind": "rate_limit_scenario",
+      "input": {
+        "detail": "{\"msg\":\"too many requests for this account\"}"
+      },
+      "expected": {
+        "soft_shape": true,
+        "code": null,
+        "reset_at": null,
+        "account_level": true
+      }
+    },
+    {
+      "id": "rate_limit.classify.3",
+      "operation": "wb_proxy.rate_limit_classification",
+      "kind": "rate_limit_scenario",
+      "input": {
+        "detail": "{\"code\":6004,\"msg\":\"your usage will reset at 2026-10-06 21:00:09 UTC+8\"}"
+      },
+      "expected": {
+        "soft_shape": false,
+        "code": 6004,
+        "reset_at": 1791291609,
+        "account_level": false
+      }
+    },
+    {
+      "id": "dispatch.restricted_stop",
+      "operation": "wb_proxy.open_upstream",
+      "kind": "dispatch_scenario",
+      "input": {
+        "accounts": [
+          "a",
+          "b"
+        ],
+        "rotate_max": 0,
+        "upstream_script": [
+          {
+            "status": 403,
+            "body": {
+              "code": 11140,
+              "msg": "request illegal"
+            }
+          },
+          {
+            "status": 200
+          }
+        ],
+        "requests": 1
+      },
+      "expected": {
+        "requests": [
+          {
+            "error_type": "ContentRejected",
+            "message": "upstream rejected the request content (403)",
+            "account_uid": "a",
+            "detail": "{\"code\": 11140, \"msg\": \"request illegal\"}",
+            "upstream_calls_so_far": 1,
+            "pool_hold_remaining": 0.0
+          }
+        ],
+        "upstream_statuses": [
+          403
+        ],
+        "accounts": [
+          {
+            "uid": "a",
+            "ready": false,
+            "restricted_until": 1700007200.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          },
+          {
+            "uid": "b",
+            "ready": true,
+            "restricted_until": 0.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "dispatch.restricted_rotate_optin",
+      "operation": "wb_proxy.open_upstream",
+      "kind": "dispatch_scenario",
+      "input": {
+        "accounts": [
+          "a",
+          "b"
+        ],
+        "rotate_max": 1,
+        "upstream_script": [
+          {
+            "status": 403,
+            "body": {
+              "code": 11140,
+              "msg": "request illegal"
+            }
+          },
+          {
+            "status": 200
+          }
+        ],
+        "requests": 1
+      },
+      "expected": {
+        "requests": [
+          {
+            "selected_account": "b",
+            "effort": "high",
+            "upstream_calls_so_far": 2,
+            "pool_hold_remaining": 0.0
+          }
+        ],
+        "upstream_statuses": [
+          403,
+          200
+        ],
+        "accounts": [
+          {
+            "uid": "a",
+            "ready": false,
+            "restricted_until": 1700007200.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          },
+          {
+            "uid": "b",
+            "ready": true,
+            "restricted_until": 0.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "dispatch.restricted_wave_hold",
+      "operation": "wb_proxy.open_upstream",
+      "kind": "dispatch_scenario",
+      "input": {
+        "accounts": [
+          "a",
+          "b"
+        ],
+        "rotate_max": 0,
+        "upstream_script": [
+          {
+            "status": 403,
+            "body": {
+              "code": 11140,
+              "msg": "request illegal"
+            }
+          },
+          {
+            "status": 403,
+            "body": {
+              "code": 11140,
+              "msg": "request illegal"
+            }
+          }
+        ],
+        "requests": 3
+      },
+      "expected": {
+        "requests": [
+          {
+            "error_type": "ContentRejected",
+            "message": "upstream rejected the request content (403)",
+            "account_uid": "a",
+            "detail": "{\"code\": 11140, \"msg\": \"request illegal\"}",
+            "upstream_calls_so_far": 1,
+            "pool_hold_remaining": 0.0
+          },
+          {
+            "error_type": "ContentRejected",
+            "message": "upstream rejected the request content (403)",
+            "account_uid": "b",
+            "detail": "{\"code\": 11140, \"msg\": \"request illegal\"}",
+            "upstream_calls_so_far": 2,
+            "pool_hold_remaining": 1800.0
+          },
+          {
+            "error_type": "RateLimited",
+            "message": "upstream rate limit: upstream account restriction in effect",
+            "account_uid": null,
+            "detail": "upstream account restriction in effect",
+            "upstream_calls_so_far": 2,
+            "pool_hold_remaining": 1800.0
+          }
+        ],
+        "upstream_statuses": [
+          403,
+          403
+        ],
+        "accounts": [
+          {
+            "uid": "a",
+            "ready": false,
+            "restricted_until": 1700007200.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          },
+          {
+            "uid": "b",
+            "ready": false,
+            "restricted_until": 1700007200.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "dispatch.content_403_no_account_penalty",
+      "operation": "wb_proxy.open_upstream",
+      "kind": "dispatch_scenario",
+      "input": {
+        "accounts": [
+          "a",
+          "b"
+        ],
+        "rotate_max": 0,
+        "upstream_script": [
+          {
+            "status": 403,
+            "body": {
+              "code": 10001,
+              "msg": "content rejected"
+            }
+          },
+          {
+            "status": 403,
+            "body": {
+              "code": 10001,
+              "msg": "content rejected"
+            }
+          }
+        ],
+        "requests": 1
+      },
+      "expected": {
+        "requests": [
+          {
+            "error_type": "ContentRejected",
+            "message": "upstream rejected the request content (403)",
+            "account_uid": "a",
+            "detail": "{\"code\": 10001, \"msg\": \"content rejected\"}",
+            "upstream_calls_so_far": 2,
+            "pool_hold_remaining": 0.0
+          }
+        ],
+        "upstream_statuses": [
+          403,
+          403
+        ],
+        "accounts": [
+          {
+            "uid": "a",
+            "ready": true,
+            "restricted_until": 0.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          },
+          {
+            "uid": "b",
+            "ready": true,
+            "restricted_until": 0.0,
+            "cooldown_until": 0.0,
+            "fails": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "concurrency.response_close_once",
+      "operation": "wb_proxy.bind_account_slot_to_response",
+      "kind": "response_slot_scenario",
+      "input": {
+        "limit": 1,
+        "close_count": 3
+      },
+      "expected": [
+        {
+          "return": true,
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {
+            "a": 1
+          }
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        },
+        {
+          "return": null,
+          "inflight": {}
+        }
+      ]
+    }
+  ]
+}

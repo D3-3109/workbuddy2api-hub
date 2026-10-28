@@ -1,0 +1,26 @@
+[package]
+name = "wbhttp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Upstream HTTP/1.1 client: OpenSSL TLS, exact header order, keep-alive pool, proxies"
+
+[dependencies]
+wbcore.workspace = true
+tokio.workspace = true
+openssl.workspace = true
+tokio-openssl.workspace = true
+bytes.workspace = true
+httparse.workspace = true
+parking_lot.workspace = true
+base64.workspace = true
+percent-encoding.workspace = true
+sha2.workspace = true
+hex.workspace = true
+url.workspace = true
+
+[features]
+# Static OpenSSL built from source: portable binaries (musl, Windows dev).
+# `--no-default-features` links the system libssl instead.
+default = ["vendored-openssl"]
+vendored-openssl = ["openssl/vendored"]

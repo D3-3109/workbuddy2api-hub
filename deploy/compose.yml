@@ -1,0 +1,45 @@
+# Run from the repository root after copying .env.example to a private .env:
+#   docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build
+# Named volumes are separate from the existing Python deployment. Back them up.
+# Bind mounts must be pre-created and writable by UID/GID 10001 (mode 0700).
+services:
+  gateway:
+    image: wb2api:local
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: "${TZ:-Etc/UTC}"
+      API_KEY: "${API_KEY:?Set a nonempty API_KEY in the private env file}"
+      WB_PANEL_PASSWORD: "${WB_PANEL_PASSWORD:?Set a non-default WB_PANEL_PASSWORD in the private env file}"
+    ports:
+      # Put a TLS reverse proxy in front before exposing the panel/API remotely.
+      - "${WB_BIND_ADDRESS:-127.0.0.1}:${WB_PORT:-8788}:8788"
+    volumes:
+      - accounts:/data/accounts
+      - usage:/data/usage
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "3", "-O", "/dev/null", "http://127.0.0.1:8788/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  accounts:
+  usage:

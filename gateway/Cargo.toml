@@ -1,0 +1,37 @@
+[package]
+name = "wb2api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Linux-first Rust port; baseline 477ba36, selected upstream v1.8.0 fixes"
+
+[[bin]]
+name = "wb2api"
+path = "src/main.rs"
+
+[dependencies]
+wbcore.workspace = true
+wbsettings.workspace = true
+wbcatalog.workspace = true
+wbaccounts.workspace = true
+wbchat.workspace = true
+wbtranslate.workspace = true
+wbusage.workspace = true
+wbhttp.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+futures-util.workspace = true
+bytes.workspace = true
+clap.workspace = true
+parking_lot.workspace = true
+url.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+[features]
+default = []
+vendored-openssl = ["wbhttp/vendored-openssl"]

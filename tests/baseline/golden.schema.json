@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Original Python offline differential golden fixtures",
+  "type": "object",
+  "required": ["schema_version", "oracle", "case_count", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "oracle": {
+      "type": "object",
+      "required": ["implementation", "source_sha256", "determinism", "constants"],
+      "properties": {
+        "implementation": {"type": "string"},
+        "source_sha256": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+        "determinism": {"type": "object", "required": ["epoch_seconds", "uuid4", "json_comparison", "settings"]},
+        "constants": {"type": "object", "additionalProperties": {"type": "number"}}
+      }
+    },
+    "case_count": {"type": "integer", "minimum": 1},
+    "cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/case"}}
+  },
+  "$defs": {
+    "frame": {
+      "type": "object",
+      "required": ["event", "data"],
+      "additionalProperties": false,
+      "properties": {
+        "event": {"type": ["string", "null"]},
+        "data": {"oneOf": [{"type": "object"}, {"const": "[DONE]"}]}
+      }
+    },
+    "case": {
+      "type": "object",
+      "required": ["id", "operation", "kind", "input", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "operation": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["return", "mutated_arg0", "utf8_return", "map_counts", "aggregate", "sse", "handler_scenario", "account_scenario", "slot_scenario", "restriction_wave", "rate_limit_scenario", "dispatch_scenario", "response_slot_scenario"]},
+        "input": {"type": "object"},
+        "expected": {}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"enum": ["return", "mutated_arg0", "utf8_return"]}}},
+          "then": {"properties": {"input": {
+            "required": ["args", "kwargs"],
+            "properties": {"args": {"type": "array"}, "kwargs": {"type": "object"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"kind": {"enum": ["sse", "handler_scenario"]}}},
+          "then": {"properties": {"expected": {
+            "type": "object", "required": ["frames"],
+            "properties": {"frames": {"type": "array", "items": {"$ref": "#/$defs/frame"}}}
+          }}}
+        }
+      ]
+    }
+  }
+}

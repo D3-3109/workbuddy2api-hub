@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = ["crates/*", "gateway"]
+
+[workspace.package]
+version = "0.1.1"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+wbcore = { path = "crates/wbcore" }
+wbsettings = { path = "crates/wbsettings" }
+wbcatalog = { path = "crates/wbcatalog" }
+wbchat = { path = "crates/wbchat" }
+wbtranslate = { path = "crates/wbtranslate" }
+wbaccounts = { path = "crates/wbaccounts" }
+wbusage = { path = "crates/wbusage" }
+wbhttp = { path = "crates/wbhttp" }
+anyhow = "1"
+base64 = "0.22"
+bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4", features = ["derive", "env"] }
+flate2 = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+hex = "0.4"
+hmac = "0.12"
+http-body-util = "0.1"
+httparse = "1"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+md-5 = "0.10"
+openssl = "0.10"
+parking_lot = "0.12"
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+percent-encoding = "2"
+rand = "0.8"
+regex = "1"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha1 = "0.10"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-openssl = "0.6"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+ipnet = "2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true

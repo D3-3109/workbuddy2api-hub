@@ -1,0 +1,14 @@
+[package]
+name = "wbchat"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Chat Completions request normalization and stream output contract"
+
+[dependencies]
+wbcore.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+sha2.workspace = true
+hex.workspace = true
+flate2.workspace = true

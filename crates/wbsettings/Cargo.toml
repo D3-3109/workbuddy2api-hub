@@ -1,0 +1,19 @@
+[package]
+name = "wbsettings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "settings.json schema, API keys, panel password, proxy slots"
+
+[dependencies]
+wbcore.workspace = true
+serde_json.workspace = true
+pbkdf2.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+hex.workspace = true
+parking_lot.workspace = true
+regex.workspace = true
+chrono.workspace = true
+ipnet.workspace = true
+url.workspace = true

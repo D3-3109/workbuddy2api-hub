@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: [rust]
+    tags: ['rust-v*']
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    branches: [rust]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish tested images to GHCR (rust branch or rust-v tags only)
+        type: boolean
+        default: true
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-container-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: '1'
+
+jobs:
+  build:
+    name: Test and build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential perl pkg-config ca-certificates
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt,clippy
+          rustup override set 1.99.1
+      - name: Validate source and lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo clippy --workspace --locked --all-targets -- -D warnings
+          cargo test --workspace --locked
+          cargo build --locked -p wb2api
+      - name: Gateway contract regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-reports
+          python3 tests/gateway_smoke.py --binary "$PWD/target/debug/wb2api" --report ci-reports/gateway.json
+          python3 tests/upstream_sync_smoke.py --binary "$PWD/target/debug/wb2api" --report ci-reports/upstream-sync.json
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build native image without publishing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: false
+          tags: local/wb2api-rust:${{ matrix.arch }}
+          provenance: false
+          cache-from: type=gha,scope=wb2api-rust-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=wb2api-rust-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=WorkBuddy2API Rust gateway
+      - name: Test built container
+        shell: bash
+        env:
+          IMAGE: local/wb2api-rust:${{ matrix.arch }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          python3 tests/container_smoke.py --image "$IMAGE" --architecture "$ARCH" --report ci-reports/container.json
+      - name: Export tested image
+        shell: bash
+        env:
+          IMAGE: local/wb2api-rust:${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          docker save "$IMAGE" | gzip -1 > ci-reports/image.tar.gz
+          sha256sum ci-reports/image.tar.gz > ci-reports/image.tar.gz.sha256
+      - name: Upload image and test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rust-image-${{ matrix.arch }}
+          path: ci-reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    name: Publish tested multi-platform image
+    needs: build
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/rust' || startsWith(github.ref, 'refs/tags/rust-v')) &&
+      (github.event_name != 'workflow_dispatch' || inputs.publish)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: rust-image-*
+          path: images
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish exact tested images and manifest
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${REPOSITORY,,}-rust"
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          if [[ "$REF_TYPE" == tag && "$REF_NAME" != "rust-v$version" ]]; then
+            printf 'Rust tag must match Cargo version: rust-v%s\n' "$version" >&2
+            exit 1
+          fi
+          for arch in amd64 arm64; do
+            archive="images/rust-image-$arch/image.tar.gz"
+            test -s "$archive"
+            expected="$(cut -d ' ' -f 1 "images/rust-image-$arch/image.tar.gz.sha256")"
+            printf '%s  %s\n' "$expected" "$archive" | sha256sum --check -
+            gzip -dc "$archive" | docker load
+            docker tag "local/wb2api-rust:$arch" "$image:sha-$COMMIT-$arch"
+            docker push "$image:sha-$COMMIT-$arch"
+          done
+          tags=(--tag "$image:sha-$COMMIT")
+          if [[ "$REF_TYPE" == tag ]]; then
+            tags+=(--tag "$image:$version")
+          else
+            tags+=(--tag "$image:edge")
+          fi
+          docker buildx imagetools create "${tags[@]}" \
+            "$image:sha-$COMMIT-amd64" "$image:sha-$COMMIT-arm64"
+          docker buildx imagetools inspect "$image:sha-$COMMIT"
+          {
+            printf '## Rust container published\n\n'
+            printf 'Image: `%s:sha-%s`\n\n' "$image" "$COMMIT"
+            printf 'Platforms: `linux/amd64`, `linux/arm64`. Both native test/build/container jobs passed.\n\n'
+            printf 'Rust package version: `%s`; alpha, not full upstream parity.\n' "$version"
+          } >> "$GITHUB_STEP_SUMMARY"

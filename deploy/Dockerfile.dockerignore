@@ -1,0 +1,15 @@
+# Dockerfile-specific allowlist: never send real accounts, usage, .env, or target/.
+**
+!Cargo.toml
+!Cargo.lock
+!NOTICE.md
+!LICENSE
+!assets/
+!assets/**
+!crates/
+!crates/**
+!gateway/
+!gateway/**
+**/target/
+**/__pycache__/
+**/*.pyc

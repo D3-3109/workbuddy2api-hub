@@ -14,6 +14,8 @@ WorkBuddy 网关的 Rust 实现：单个静态二进制，无 Python 运行时�
 
 当前版本仍为 **alpha**：核心转发路径可用并有离线契约测试，但不是 Python 版的完整功能替换，也没有在真实账号上做过长期验证。
 
+与 `rust-port` 上的迁移版相比，本分支重写了转发热路径、连接池、看板与用量接口缓存和日志写入，功能输出不变。本机回环压测下 32 并发流式吞吐约为原来的 15 倍，详见 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)。
+
 ## 已覆盖的核心
 
 - Chat Completions、Responses、Anthropic Messages 的请求转换、流式和非流式响应；Messages 默认关闭。
@@ -124,7 +126,7 @@ Python基线与黄金样本见 `tests/baseline/README.md`；重新生成需要�
 
 `--offline` 禁止网关后台刷新，但普通API请求仍可按账号访问上游。隐藏的 `--test-upstream` 只允许HTTP数字loopback地址且要求网关也监听loopback；仅用于本地契约测试，不是生产上游配置。
 
-最终验证次数和产物信息记录在 [docs/VALIDATION.md](docs/VALIDATION.md)。代码相容性测试不能证明真实上游不会拒绝请求，也不能证明Rust已带来某个倍数的性能提升。
+最终验证次数和产物信息记录在 [docs/VALIDATION.md](docs/VALIDATION.md)。代码相容性测试不能证明真实上游不会拒绝请求；性能数字来自本机假上游压测（`bench/`），不等同于真实上游下的表现。
 
 ## 项目结构
 
@@ -142,4 +144,5 @@ gateway/           HTTP路由、调度集成、管理接口
 deploy/            Dockerfile、compose、systemd模板
 docs/              迁移范围、验证记录、行为规格
 tests/             整机冒烟测试与Python黄金样本
+bench/             离线压测工具（独立crate，不进入网关构建）
 ```

@@ -18,10 +18,6 @@ use wbtranslate::{ResponseOptions, TranslationOptions};
 const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
 
-pub fn desktop_chat_compat_enabled() -> bool {
-    std::env::var("WB_DESKTOP_CHAT_COMPAT").is_ok_and(|v| v.trim() == "1")
-}
-
 pub fn key_allows_model(key: Option<&Value>, model: &str) -> bool {
     match key {
         Some(key) => wbsettings::key_allows_model(key, model),
@@ -53,12 +49,15 @@ pub async fn chat(
     };
     let mut settings = app.settings.snapshot();
     settings["system_prompt"] = json!(app.args.system_prompt);
-    for (env, field) in [
-        ("WB_BACKGROUND_MODEL_TARGET", "background_model_target"),
-        ("WB_BACKGROUND_MODEL_NAMES", "background_model_names"),
-        ("WB_DEFAULT_REASONING_EFFORT", "default_reasoning_effort"),
+    for (value, field) in [
+        (&app.env.background_model_target, "background_model_target"),
+        (&app.env.background_model_names, "background_model_names"),
+        (
+            &app.env.default_reasoning_effort,
+            "default_reasoning_effort",
+        ),
     ] {
-        if let Ok(v) = std::env::var(env) {
+        if let Some(v) = value {
             settings[field] = json!(v);
         }
     }
@@ -131,14 +130,19 @@ pub async fn chat(
             Err(e) => return wire::error(e.status, e.message, true),
         }
     } else {
-        (payload.clone(), Protocol::Chat)
+        (Value::Null, Protocol::Chat)
     };
-    let lookup_model = match wbchat::resolve_model(&chat_payload, &settings) {
+    let chat_payload = if matches!(protocol, Protocol::Chat) {
+        &payload
+    } else {
+        &chat_payload
+    };
+    let lookup_model = match wbchat::resolve_model(chat_payload, &settings) {
         Ok(m) => m,
         Err(e) => return wire::error(400, e.to_string(), anthropic),
     };
     let catalog = app.catalog.read().meta(realm, &lookup_model);
-    let normalized = match wbchat::normalize_request(&chat_payload, &settings, &catalog) {
+    let normalized = match wbchat::normalize_request(chat_payload, &settings, &catalog) {
         Ok(n) => n,
         Err(e) => return wire::error(400, e.to_string(), anthropic),
     };
@@ -174,7 +178,13 @@ pub async fn chat(
         }
     };
     let started = now();
-    let session = extract_session(headers, &payload, &normalized.body, &settings);
+    let session = extract_session(
+        headers,
+        &payload,
+        &normalized.body,
+        &settings,
+        app.env.affinity_by_prefix,
+    );
     let mut pick = PickOptions {
         realm: Some(realm),
         model: model.clone(),
@@ -223,7 +233,7 @@ pub async fn chat(
         key,
         original_stream,
         started,
-        normalized.body.clone(),
+        &normalized.body,
     );
     let opened = open_upstream(
         &app,
@@ -305,6 +315,7 @@ fn extract_session(
     payload: &Value,
     body: &Value,
     settings: &Value,
+    affinity_by_prefix: bool,
 ) -> (String, Option<(usize, usize)>) {
     for h in [
         "x-conversation-id",
@@ -325,7 +336,7 @@ fn extract_session(
             return (s.trim().into(), None);
         }
     }
-    if std::env::var("WB_AFFINITY_BY_PREFIX").is_ok_and(|s| s == "0") {
+    if !affinity_by_prefix {
         return (String::new(), None);
     }
     let msgs = body["messages"]
@@ -340,43 +351,72 @@ fn extract_session(
     )
 }
 
-pub fn apply_guards(app: &App) -> Result<(), String> {
-    let totals = app
-        .usage
-        .daily_totals()
-        .map_err(|_| "could not read daily usage counters".to_string())?;
+/// Free/paid-only model sets per realm. Listing the catalog builds every
+/// public model entry, so this runs once per catalog revision, not per request.
+fn model_sets(app: &App, realm: Realm) -> (Arc<HashSet<String>>, Arc<HashSet<String>>) {
     let catalog = app.catalog.read();
-    for a in app.pool.accounts() {
-        let realm = a.realm();
-        let uid = a.uid();
-        let mut g = wbaccounts::Guards::default();
-        g.reserve_credits = app.settings.limit("reserve_credits", realm) as f64;
-        g.expiring_window_days = app.settings.limit("expiring_window_days", realm) as f64;
-        g.daily_token_limit = app.settings.limit("daily_token_limit", realm);
-        g.daily_tokens_today = Some(totals["tokens"][uid].as_u64().unwrap_or(0));
-        g.daily_credit_limit = app.settings.limit("daily_credit_limit", realm) as f64;
-        g.daily_credits_today = Some(totals["credits"][uid].as_f64().unwrap_or(0.0));
-        g.model_daily_token_limit = app.settings.limit("model_daily_token_limit", realm);
-        g.model_daily_tokens = totals["models"][uid]
-            .as_object()
-            .map(|m| {
-                m.iter()
-                    .map(|(k, v)| (k.clone(), v.as_u64().unwrap_or(0)))
-                    .collect()
-            })
-            .unwrap_or_default();
+    let mut sets = app.model_sets.lock();
+    if sets.revision != Some(catalog.revision()) {
+        sets.free.clear();
+        sets.pro.clear();
+        sets.revision = Some(catalog.revision());
+    }
+    if !sets.free.contains_key(&realm) {
+        let (mut free, mut pro) = (HashSet::new(), HashSet::new());
         if let Some(rows) = catalog.list(realm)["data"].as_array() {
             for row in rows {
                 if let Some(id) = row["id"].as_str() {
                     if matches!(row["credits"].as_str(), Some("x0.00" | "x0" | "0" | "0.00")) {
-                        g.free_models.insert(id.into());
+                        free.insert(id.to_owned());
                     }
                     if catalog.requires_pro(realm, id) {
-                        g.pro_models.insert(id.into());
+                        pro.insert(id.to_owned());
                     }
                 }
             }
         }
+        sets.free.insert(realm, Arc::new(free));
+        sets.pro.insert(realm, Arc::new(pro));
+    }
+    (sets.free[&realm].clone(), sets.pro[&realm].clone())
+}
+
+pub fn apply_guards(app: &App) -> Result<(), String> {
+    let totals = app
+        .usage
+        .daily_totals_shared()
+        .map_err(|_| "could not read daily usage counters".to_string())?;
+    let limits = app.settings.current();
+    let limit = |key: &str, realm: Realm| {
+        let l = &limits["limits"][key];
+        l[realm.as_str()]
+            .as_u64()
+            .or_else(|| l["global"].as_u64())
+            .unwrap_or(0)
+    };
+    for a in app.pool.accounts() {
+        let realm = a.realm();
+        let uid = a.uid();
+        let (free_models, pro_models) = model_sets(app, realm);
+        let g = wbaccounts::Guards {
+            reserve_credits: limit("reserve_credits", realm) as f64,
+            expiring_window_days: limit("expiring_window_days", realm) as f64,
+            daily_token_limit: limit("daily_token_limit", realm),
+            daily_tokens_today: Some(totals["tokens"][uid].as_u64().unwrap_or(0)),
+            daily_credit_limit: limit("daily_credit_limit", realm) as f64,
+            daily_credits_today: Some(totals["credits"][uid].as_f64().unwrap_or(0.0)),
+            model_daily_token_limit: limit("model_daily_token_limit", realm),
+            model_daily_tokens: totals["models"][uid]
+                .as_object()
+                .map(|m| {
+                    m.iter()
+                        .map(|(k, v)| (k.clone(), v.as_u64().unwrap_or(0)))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            free_models,
+            pro_models,
+        };
         a.set_guards(g);
     }
     Ok(())
@@ -462,6 +502,13 @@ fn restrict_account(app: &App, account: &Arc<Account>) -> OpenFailure {
     OpenFailure::restriction()
 }
 
+/// One classified upstream SSE line. `Event` carries the already-parsed object.
+#[derive(Debug)]
+enum Line {
+    Skip,
+    Done,
+    Event(Value),
+}
 #[derive(Default)]
 struct ObservedStream {
     usage: Option<Value>,
@@ -493,20 +540,20 @@ impl ObservedStream {
             }
         }
     }
-    /// True means feed this line to the protocol adapter. Metadata/comments are
-    /// ignored. Both newline-terminated and final buffered lines use this path.
-    fn line(&mut self, line: &str) -> Result<bool, OpenFailure> {
+    /// `Skip` lines are metadata/comments; `Done` and `Event` go to the protocol
+    /// adapter. Both newline-terminated and final buffered lines use this path.
+    fn line(&mut self, line: &str) -> Result<Line, OpenFailure> {
         let data = wbcore::sse::strip_data_prefix(line);
         if data.is_empty()
             || data.starts_with("event:")
             || data.starts_with("id:")
             || data.starts_with("retry:")
         {
-            return Ok(false);
+            return Ok(Line::Skip);
         }
         if data == "[DONE]" {
             self.saw_done = true;
-            return Ok(true);
+            return Ok(Line::Done);
         }
         let value: Value = serde_json::from_str(data)
             .map_err(|_| OpenFailure::new(502, "invalid JSON in upstream event stream"))?;
@@ -535,7 +582,7 @@ impl ObservedStream {
                 }
             }
         }
-        Ok(true)
+        Ok(Line::Event(value))
     }
     fn finish(&self) -> Result<(), OpenFailure> {
         // Some providers close after an explicit finish_reason without DONE.
@@ -552,6 +599,29 @@ impl ObservedStream {
     }
 }
 
+/// The parts of a request body the usage row needs, taken before dispatch so
+/// the audit guard does not retain a copy of the whole conversation.
+#[derive(Default)]
+struct BodySummary {
+    msgs_sha: Option<String>,
+    n_msgs: Option<usize>,
+    reasoning_effort: Option<String>,
+}
+impl BodySummary {
+    fn of(body: &Value) -> Self {
+        let messages = body["messages"].as_array();
+        Self {
+            msgs_sha: messages.map(|m| {
+                let mut hash = wbcore::ids::sha256_hex(&wbcore::pyjson::dumps_sorted_slice(m));
+                hash.truncate(12);
+                hash
+            }),
+            n_msgs: messages.map(Vec::len),
+            reasoning_effort: body["reasoning_effort"].as_str().map(str::to_owned),
+        }
+    }
+}
+
 struct RequestRecord {
     app: Arc<App>,
     account: Option<Arc<Account>>,
@@ -559,7 +629,7 @@ struct RequestRecord {
     key: Option<Value>,
     stream: bool,
     started: f64,
-    body: Value,
+    body: BodySummary,
     observed: ObservedStream,
     recorded: bool,
 }
@@ -570,7 +640,7 @@ impl RequestRecord {
         key: Option<Value>,
         stream: bool,
         started: f64,
-        body: Value,
+        body: &Value,
     ) -> Self {
         Self {
             app,
@@ -579,12 +649,12 @@ impl RequestRecord {
             key,
             stream,
             started,
-            body,
+            body: BodySummary::of(body),
             observed: ObservedStream::default(),
             recorded: false,
         }
     }
-    fn line(&mut self, line: &str) -> Result<bool, OpenFailure> {
+    fn line(&mut self, line: &str) -> Result<Line, OpenFailure> {
         match self.observed.line(line) {
             Err(error) if error.restricted => {
                 if let Some(account) = &self.account {
@@ -693,9 +763,9 @@ async fn open_upstream(
         audit.observed = ObservedStream::default();
         pick.exclude.insert(account.uid().to_string());
         let mut opts = wbaccounts::ChatOptions::default();
-        opts.desktop_chat_compat = desktop_chat_compat_enabled();
-        opts.request.proxy = account.resolve_proxy(&json!(app.settings.proxy_slots()));
-        opts.request.cn_chat_base = std::env::var("WB_CN_CHAT_UPSTREAM").ok();
+        opts.desktop_chat_compat = app.env.desktop_chat_compat;
+        opts.request.proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
+        opts.request.cn_chat_base = app.env.cn_chat_upstream.clone();
         opts.request.timeout_secs = settings["upstream"]["header_timeout_seconds"]
             .as_f64()
             .unwrap_or(120.0);
@@ -749,18 +819,16 @@ async fn open_upstream(
         version!(sdk);
         version!(node);
         if versions["node"].as_str().unwrap_or("").trim().is_empty() {
-            if let Ok(node) = std::env::var("WB_IDENTITY_NODE_VERSION") {
-                if !node.trim().is_empty() {
-                    opts.versions.node = node.trim().to_owned();
-                }
+            if let Some(node) = &app.env.identity_node_version {
+                opts.versions.node = node.clone();
             }
         }
-        for (name, target) in [
-            ("WB_IDENTITY_OS", &mut opts.versions.os),
-            ("WB_IDENTITY_ARCH", &mut opts.versions.arch),
+        for (value, target) in [
+            (&app.env.identity_os, &mut opts.versions.os),
+            (&app.env.identity_arch, &mut opts.versions.arch),
         ] {
-            if let Ok(v) = std::env::var(name) {
-                *target = v;
+            if let Some(v) = value {
+                *target = v.clone();
             }
         }
         opts.private_data = match settings["identity"]["private_data"].as_str() {
@@ -940,8 +1008,8 @@ async fn refresh_checked(
     let operation = async {
         let mut opts = wbaccounts::RequestOptions::default();
         opts.timeout_secs = 10.0;
-        opts.proxy = account.resolve_proxy(&json!(app.settings.proxy_slots()));
-        opts.cn_chat_base = std::env::var("WB_CN_CHAT_UPSTREAM").ok();
+        opts.proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
+        opts.cn_chat_base = app.env.cn_chat_upstream.clone();
         let mut request = wbaccounts::build_refresh_request(&account.cred(), &opts)
             .map_err(|_| OpenFailure::new(502, "could not build token refresh request"))?;
         app.rewrite_test_upstream(&mut request);
@@ -1002,8 +1070,8 @@ pub async fn maintenance(app: Arc<App>) {
             else {
                 continue;
             };
-            let proxy = account.resolve_proxy(&json!(app.settings.proxy_slots()));
-            let override_base = std::env::var("WB_CN_CHAT_UPSTREAM").ok();
+            let proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
+            let override_base = app.env.cn_chat_upstream.clone();
             let requests = wbcatalog::config_requests(
                 &account.cred(),
                 wbcore::types::Egress::Proxy(proxy),
@@ -1047,6 +1115,7 @@ async fn collect_chat(
 ) -> Result<Value, OpenFailure> {
     let mut agg = Aggregator::new();
     let mut split = LineSplitter::new();
+    let mut lines = Vec::new();
     let (mut total, mut line_bytes) = (0, 0);
     while let Some(bytes) = upstream
         .next_chunk()
@@ -1057,18 +1126,14 @@ async fn collect_chat(
         if total > MAX_RESPONSE_BYTES || !line_bound(&bytes, &mut line_bytes) {
             return Err(OpenFailure::new(502, "upstream SSE buffer limit exceeded"));
         }
-        let mut lines = vec![];
+        lines.clear();
         split.push(&bytes, &mut lines);
-        for line in lines {
-            if audit.line(&line)? {
-                agg.push_line(&line);
-            }
+        for line in &lines {
+            aggregate(&mut agg, audit.line(line)?);
         }
     }
     if let Some(line) = split.finish() {
-        if audit.line(&line)? {
-            agg.push_line(&line);
-        }
+        aggregate(&mut agg, audit.line(&line)?);
     }
     audit.observed.finish()?;
     let mut value = agg.finish(model, None).obj;
@@ -1079,6 +1144,14 @@ async fn collect_chat(
         value["usage"] = usage.clone();
     }
     Ok(value)
+}
+
+fn aggregate(agg: &mut Aggregator, line: Line) {
+    match line {
+        Line::Skip => {}
+        Line::Done => agg.saw_done = true,
+        Line::Event(value) => agg.push_chunk(&value),
+    }
 }
 
 fn line_bound(bytes: &[u8], pending: &mut usize) -> bool {
@@ -1101,38 +1174,54 @@ enum Adapter {
     Compaction(ResponseOptions, Aggregator, bool),
     Messages(wbtranslate::MessagesStream),
 }
+
+fn events(out: &mut String, events: Vec<wbtranslate::SseEvent>) {
+    for event in events {
+        event.write_sse(out);
+    }
+}
+fn frames(out: &mut String, frames: Vec<String>) {
+    for frame in frames {
+        out.push_str(&frame);
+    }
+}
+
+/// Every adapter method appends wire bytes to `out`, so all frames produced
+/// from one upstream read reach the client as a single body chunk.
 impl Adapter {
     fn new(protocol: Protocol, model: &str) -> Self {
         match protocol {
-            Protocol::Chat => Self::Chat(wbchat::ChatStream::new(model)),
+            Protocol::Chat => Self::Chat(wbchat::ChatStream::new(model).without_completion()),
             Protocol::Responses(opts) => Self::Responses(wbtranslate::ResponsesStream::new(opts)),
             Protocol::Compaction(opts) => Self::Compaction(opts, Aggregator::new(), false),
             Protocol::Messages => Self::Messages(wbtranslate::MessagesStream::new(model)),
         }
     }
-    fn line(&mut self, line: &str) -> Vec<String> {
-        match self {
-            Self::Chat(s) => s.push_line(line),
-            Self::Responses(s) => s.push_line(line).into_iter().map(|e| e.to_sse()).collect(),
-            Self::Messages(s) => s.push_line(line).into_iter().map(|e| e.to_sse()).collect(),
-            Self::Compaction(_, a, _) => {
-                a.push_line(line);
-                vec![]
-            }
+    fn line(&mut self, raw: &str, line: Line, out: &mut String) {
+        match (self, line) {
+            (_, Line::Skip) => {}
+            (Self::Chat(s), Line::Event(v)) => frames(out, s.push_value(raw, v)),
+            (Self::Chat(s), Line::Done) => frames(out, s.push_line(raw)),
+            (Self::Responses(s), Line::Event(v)) => events(out, s.push_value(&v)),
+            (Self::Responses(s), Line::Done) => events(out, s.push_line(raw)),
+            (Self::Messages(s), Line::Event(v)) => events(out, s.push_chunk(&v)),
+            (Self::Messages(s), Line::Done) => events(out, s.push_line(raw)),
+            (Self::Compaction(_, a, _), Line::Event(v)) => a.push_chunk(&v),
+            (Self::Compaction(_, a, _), Line::Done) => a.saw_done = true,
         }
     }
-    fn finish(&mut self) -> Vec<String> {
+    fn finish(&mut self, out: &mut String) {
         match self {
-            Self::Chat(s) => s.finish(),
-            Self::Responses(s) => s.finish().into_iter().map(|e| e.to_sse()).collect(),
-            Self::Messages(s) => s.finish().into_iter().map(|e| e.to_sse()).collect(),
+            Self::Chat(s) => frames(out, s.finish()),
+            Self::Responses(s) => events(out, s.finish()),
+            Self::Messages(s) => events(out, s.finish()),
             Self::Compaction(opts, a, failed) => {
                 let result = std::mem::take(a).finish(&opts.model, None);
                 match wbtranslate::compaction_events(&result.obj, opts) {
-                    Ok(events) => events.into_iter().map(|e| e.to_sse()).collect(),
+                    Ok(list) => events(out, list),
                     Err(e) => {
                         *failed = true;
-                        vec![format!("event: error\ndata: {}\n\n", e.openai())]
+                        out.push_str(&format!("event: error\ndata: {}\n\n", e.openai()));
                     }
                 }
             }
@@ -1146,29 +1235,35 @@ impl Adapter {
             Self::Compaction(_, _, failed) => *failed,
         }
     }
-    fn abort(&mut self, message: &str) -> Vec<String> {
+    fn abort(&mut self, message: &str, out: &mut String) {
         match self {
-            Self::Chat(s) => s.abort(
-                json!({"message":message,"type":"upstream_error","code":"upstream_stream_error"}),
+            Self::Chat(s) => frames(
+                out,
+                s.abort(
+                    json!({"message":message,"type":"upstream_error","code":"upstream_stream_error"}),
+                ),
             ),
-            Self::Responses(s) => s.abort(message).into_iter().map(|e| e.to_sse()).collect(),
-            Self::Messages(s) => s.abort(message).into_iter().map(|e| e.to_sse()).collect(),
-            Self::Compaction(_, _, _) => vec![format!(
+            Self::Responses(s) => events(out, s.abort(message)),
+            Self::Messages(s) => events(out, s.abort(message)),
+            Self::Compaction(_, _, _) => out.push_str(&format!(
                 "event: error\ndata: {}\n\n",
                 json!({"type":"error","message":message,"code":"upstream_stream_error","sequence_number":0})
-            )],
+            )),
         }
     }
 }
 
-async fn send_frames(tx: &mpsc::Sender<Bytes>, frames: Vec<String>) -> Result<(), ()> {
-    for frame in frames {
-        match tokio::time::timeout(Duration::from_secs(30), tx.send(Bytes::from(frame))).await {
-            Ok(Ok(())) => {}
-            _ => return Err(()),
-        }
+/// Send one batch; an empty batch is a no-op. A client that has not accepted
+/// the previous chunks within 30 s is treated as gone.
+async fn send(tx: &mpsc::Sender<Bytes>, out: &mut String) -> Result<(), ()> {
+    if out.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let chunk = Bytes::from(std::mem::take(out));
+    match tokio::time::timeout(Duration::from_secs(30), tx.send(chunk)).await {
+        Ok(Ok(())) => Ok(()),
+        _ => Err(()),
+    }
 }
 
 enum ReadResult {
@@ -1185,9 +1280,16 @@ async fn next_stream(upstream: &mut wbhttp::Response, tx: &mpsc::Sender<Bytes>) 
     );
     loop {
         tokio::select! {
-            _=tx.closed()=>return ReadResult::Client,
-            result=&mut read=>return match result{Ok(data)=>ReadResult::Data(data),Err(e)=>ReadResult::Upstream(e.to_string())},
-            _=heartbeat.tick()=>if send_frames(tx,vec![": keepalive\n\n".into()]).await.is_err(){return ReadResult::Client;}
+            _ = tx.closed() => return ReadResult::Client,
+            result = &mut read => return match result {
+                Ok(data) => ReadResult::Data(data),
+                Err(e) => ReadResult::Upstream(e.to_string()),
+            },
+            _ = heartbeat.tick() => {
+                if send(tx, &mut ": keepalive\n\n".to_owned()).await.is_err() {
+                    return ReadResult::Client;
+                }
+            }
         }
     }
 }
@@ -1200,11 +1302,13 @@ async fn run_stream(
 ) {
     let mut adapter = Adapter::new(protocol, &audit.model);
     let mut splitter = LineSplitter::new();
+    let mut lines = Vec::new();
+    let mut out = String::new();
     let (mut total, mut line_bytes) = (0, 0);
     let mut client_aborted = false;
     let mut failure = None;
-    'read: loop {
-        let mut lines = vec![];
+    loop {
+        lines.clear();
         let eof = match next_stream(&mut upstream, &tx).await {
             ReadResult::Client => {
                 client_aborted = true;
@@ -1230,26 +1334,31 @@ async fn run_stream(
                 false
             }
         };
-        for line in lines {
-            match audit.line(&line) {
+        for raw in &lines {
+            let line = match audit.line(raw) {
                 Err(error) => {
                     failure = Some(error);
-                    break 'read;
+                    break;
                 }
-                Ok(false) => continue,
-                Ok(true) => {}
-            }
-            if send_frames(&tx, adapter.line(&line)).await.is_err() {
-                client_aborted = true;
-                break 'read;
-            }
+                Ok(line) => line,
+            };
+            adapter.line(raw, line, &mut out);
             if adapter.failed() {
                 failure = Some(OpenFailure::new(
                     502,
                     "upstream protocol translation failed",
                 ));
-                break 'read;
+                break;
             }
+        }
+        // Frames translated before a failure in this batch are still delivered,
+        // ahead of the abort frame below.
+        if send(&tx, &mut out).await.is_err() {
+            client_aborted = true;
+            break;
+        }
+        if failure.is_some() {
+            break;
         }
         if eof {
             failure = audit.observed.finish().err();
@@ -1259,8 +1368,10 @@ async fn run_stream(
     // Close unread upstream immediately, before an abort frame can block on a
     // slow downstream. Cancellation of next_chunk also closes its owned socket.
     drop(upstream);
+    out.clear();
     if !client_aborted && failure.is_none() {
-        if send_frames(&tx, adapter.finish()).await.is_err() {
+        adapter.finish(&mut out);
+        if send(&tx, &mut out).await.is_err() {
             client_aborted = true;
         } else if adapter.failed() {
             failure = Some(OpenFailure::new(
@@ -1270,7 +1381,8 @@ async fn run_stream(
         }
     } else if !client_aborted {
         if let Some(error) = &failure {
-            let _ = send_frames(&tx, adapter.abort(&error.message)).await;
+            adapter.abort(&error.message, &mut out);
+            let _ = send(&tx, &mut out).await;
         }
     }
     let outcome = if failure.is_some() {
@@ -1300,7 +1412,7 @@ fn record(
     usage: Option<&Value>,
     outcome: &str,
     failure: Option<(u16, &str)>,
-    body: &Value,
+    body: &BodySummary,
 ) {
     let at = now();
     let elapsed = ((at - started) * 1000.0).max(0.0) as u64;
@@ -1322,16 +1434,15 @@ fn record(
     } else {
         row["usage_missing"] = json!(true);
     }
-    if let Some(messages) = body["messages"].as_array() {
-        let hash = wbcore::ids::sha256_hex(&wbcore::pyjson::dumps_sorted(&json!(messages)));
-        row["msgs_sha"] = json!(&hash[..12]);
-        row["n_msgs"] = json!(messages.len());
+    if let (Some(hash), Some(count)) = (&body.msgs_sha, body.n_msgs) {
+        row["msgs_sha"] = json!(hash);
+        row["n_msgs"] = json!(count);
     }
     if failure.is_none() {
         if let Ok(Some(policy)) = app.usage.current_policy_id(model) {
             row["cost_policy"] = json!(policy);
         }
-        if let Some(effort) = body["reasoning_effort"].as_str() {
+        if let Some(effort) = &body.reasoning_effort {
             row["reasoning_effort"] = json!(effort);
         }
     }
@@ -1369,7 +1480,10 @@ mod tests {
             "content":"unusual activity 账号存在异常行为 已被限制",
             "tool_calls":[{"function":{"arguments":"{\"code\":11140}"}}]
         },"finish_reason":null}]});
-        assert!(observed.line(&format!("data: {frame}")).unwrap());
+        assert!(matches!(
+            observed.line(&format!("data: {frame}")).unwrap(),
+            Line::Event(_)
+        ));
         assert!(structured_failure(&frame).is_none());
         assert!(
             structured_failure(&json!({"error":{"code":11140}}))
@@ -1472,30 +1586,20 @@ mod tests {
 
     fn test_app(root: &std::path::Path, account: Arc<Account>) -> Arc<App> {
         use clap::Parser;
-        use parking_lot::{Mutex, RwLock};
         let mut args = crate::cli::Args::try_parse_from(["wb2api"]).unwrap();
         args.accounts_dir = root.join("accounts");
         args.usage_dir = root.join("usage");
         let settings = wbsettings::Settings::load(args.accounts_dir.join("settings.json")).unwrap();
         let usage = wbusage::UsageStore::new(args.usage_dir.clone());
-        let (shutdown, _) = tokio::sync::watch::channel(false);
-        Arc::new(App {
+        Arc::new(App::new(
             args,
             settings,
+            wbaccounts::AccountPool::new(vec![account]),
             usage,
-            pool: Arc::new(wbaccounts::AccountPool::new(vec![account])),
-            catalog: RwLock::new(wbcatalog::Catalog::bundled()),
-            http: wbhttp::Client::new().unwrap(),
-            realm: RwLock::new(Realm::Intl),
-            extra_keys: vec![],
-            slots: Arc::new(tokio::sync::Semaphore::new(1)),
-            login_limit: wbsettings::LoginRateLimiter::new(),
-            refresh_locks: Mutex::new(HashMap::new()),
-            restrictions: Mutex::new(HashMap::new()),
-            logs: Mutex::new(std::collections::VecDeque::new()),
-            shutdown,
-            started: now(),
-        })
+            wbhttp::Client::new().unwrap(),
+            Realm::Intl,
+            vec![],
+        ))
     }
 
     #[test]
@@ -1505,7 +1609,7 @@ mod tests {
         let app = test_app(&root, account.clone());
         {
             let mut audit =
-                RequestRecord::new(app.clone(), "test".into(), None, false, now(), json!({}));
+                RequestRecord::new(app.clone(), "test".into(), None, false, now(), &json!({}));
             audit.account = Some(account.clone());
             audit
                 .line(r#"data: {"usage":{"total_tokens":7,"credit":2}}"#)
@@ -1514,7 +1618,7 @@ mod tests {
         }
         {
             let mut audit =
-                RequestRecord::new(app.clone(), "test".into(), None, false, now(), json!({}));
+                RequestRecord::new(app.clone(), "test".into(), None, false, now(), &json!({}));
             audit.account = Some(account.clone());
             let error = audit
                 .line(

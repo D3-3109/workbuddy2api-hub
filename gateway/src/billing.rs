@@ -402,8 +402,8 @@ fn restriction(app: &App, account: &Account) -> Result<()> {
 }
 fn options(app: &App, account: &Account, seconds: f64) -> RequestOptions {
     RequestOptions {
-        proxy: account.resolve_proxy(&json!(app.settings.proxy_slots())),
-        cn_chat_base: std::env::var("WB_CN_CHAT_UPSTREAM").ok(),
+        proxy: account.resolve_proxy_in(&app.settings.proxy_slots_shared()),
+        cn_chat_base: app.env.cn_chat_upstream.clone(),
         timeout_secs: seconds,
     }
 }

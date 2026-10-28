@@ -104,8 +104,9 @@ pub struct Guards {
     pub daily_credits_today: Option<f64>,
     pub model_daily_token_limit: u64,
     pub model_daily_tokens: HashMap<String, u64>,
-    pub free_models: HashSet<String>,
-    pub pro_models: HashSet<String>,
+    /// Shared across accounts; rebuilt only when the model catalog changes.
+    pub free_models: Arc<HashSet<String>>,
+    pub pro_models: Arc<HashSet<String>>,
 }
 impl Default for Guards {
     fn default() -> Self {
@@ -118,8 +119,8 @@ impl Default for Guards {
             daily_credits_today: None,
             model_daily_token_limit: 0,
             model_daily_tokens: HashMap::new(),
-            free_models: HashSet::new(),
-            pro_models: HashSet::new(),
+            free_models: Arc::default(),
+            pro_models: Arc::default(),
         }
     }
 }
@@ -630,18 +631,20 @@ impl Account {
         text(&self.state.read().doc, "proxySlot")
     }
     pub fn resolve_proxy(&self, slots: &Value) -> String {
-        let slot = self.proxy_slot();
-        if let Some(rows) = slots.as_array() {
-            for row in rows {
-                if text(row, "id") == slot
-                    && !slot.is_empty()
-                    && row["enabled"].as_bool().unwrap_or(true)
-                {
+        self.resolve_proxy_in(slots.as_array().map(Vec::as_slice).unwrap_or(&[]))
+    }
+    /// Same as `resolve_proxy`, without wrapping the slot list in a JSON array.
+    pub fn resolve_proxy_in(&self, slots: &[Value]) -> String {
+        let s = self.state.read();
+        let slot = s.doc["proxySlot"].as_str().unwrap_or("");
+        if !slot.is_empty() {
+            for row in slots {
+                if row["id"].as_str() == Some(slot) && row["enabled"].as_bool().unwrap_or(true) {
                     return text(row, "url");
                 }
             }
         }
-        self.proxy()
+        text(&s.doc, "proxy")
     }
     pub fn readiness(&self, model: &str, now: f64) -> Readiness {
         let s = self.state.read();
@@ -659,8 +662,15 @@ impl Account {
             return block(BlockReason::Expired, 0.0);
         }
         if s.doc["disabledModels"].as_array().is_some_and(|xs| {
-            xs.iter()
-                .any(|v| v.as_str() == Some(model.trim().to_lowercase().as_str()))
+            // Equal to comparing against `model.trim().to_lowercase()`, without allocating.
+            let wanted = model.trim();
+            xs.iter().any(|v| {
+                v.as_str().is_some_and(|stored| {
+                    stored
+                        .chars()
+                        .eq(wanted.chars().flat_map(char::to_lowercase))
+                })
+            })
         }) {
             return block(BlockReason::ModelDisabled, 0.0);
         }

@@ -30,6 +30,7 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 use wbcore::{ids, types::Realm};
 
@@ -91,9 +92,56 @@ fn invalid(message: impl Into<String>) -> Error {
 
 // Independent Settings instances must not race their read/modify/write cycles.
 static FILE_LOCK: Mutex<()> = Mutex::new(());
+
+/// File identity used to detect external edits without rereading the file.
+/// Atomic replacement changes the inode on Unix; size/mtime cover other edits.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Stamp {
+    len: u64,
+    modified: Option<SystemTime>,
+    #[cfg(unix)]
+    inode: (u64, u64),
+}
+
+fn stamp(path: &Path) -> io::Result<Option<Stamp>> {
+    match fs::metadata(path) {
+        Ok(meta) => Ok(Some(Stamp {
+            len: meta.len(),
+            modified: meta.modified().ok(),
+            #[cfg(unix)]
+            inode: {
+                use std::os::unix::fs::MetadataExt;
+                (meta.dev(), meta.ino())
+            },
+        })),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Parsed, migrated and resolved file contents. Immutable once published.
+struct Cached {
+    stamp: Option<Stamp>,
+    raw: Value,
+    resolved: Arc<Value>,
+    keys: Arc<Vec<Value>>,
+    proxies: Arc<Vec<Value>>,
+}
+impl Cached {
+    fn new(stamp: Option<Stamp>, raw: Value) -> Self {
+        Self {
+            stamp,
+            resolved: Arc::new(schema::resolve(&raw)),
+            keys: Arc::new(keys::read_all(&raw)),
+            proxies: Arc::new(proxies::read_all(&raw)),
+            raw,
+        }
+    }
+}
+
 struct Inner {
     path: PathBuf,
-    last_read: Mutex<Value>,
+    cache: Mutex<Arc<Cached>>,
     sessions: PanelSessions,
     key_slots: Arc<Mutex<HashMap<String, u64>>>,
 }
@@ -111,15 +159,19 @@ impl Settings {
             path.to_owned()
         };
         let _lock = FILE_LOCK.lock();
+        let before = stamp(&path).ok().flatten();
         let mut data = read_file(&path)?;
+        let mut current = before;
         if schema::migrate(&mut data) {
             // Read-only stores still resolve legacy values; the next write retries.
-            let _ = atomic_write(&path, &data);
+            if atomic_write(&path, &data).is_ok() {
+                current = stamp(&path).ok().flatten();
+            }
         }
         Ok(Self {
             inner: Arc::new(Inner {
                 path,
-                last_read: Mutex::new(data),
+                cache: Mutex::new(Arc::new(Cached::new(current, data))),
                 sessions: PanelSessions::new(),
                 key_slots: Arc::new(Mutex::new(HashMap::new())),
             }),
@@ -130,12 +182,31 @@ impl Settings {
         &self.inner.path
     }
 
-    fn raw(&self) -> Value {
+    /// Current contents. One `stat` per call; the file is reread and reparsed
+    /// only after it changed. As before, an unreadable file keeps the last good
+    /// contents and a malformed one resolves to defaults.
+    fn state(&self) -> Arc<Cached> {
+        let current = match stamp(self.path()) {
+            Ok(current) => current,
+            Err(_) => return self.inner.cache.lock().clone(),
+        };
+        {
+            let cache = self.inner.cache.lock();
+            if cache.stamp == current {
+                return cache.clone();
+            }
+        }
         let _lock = FILE_LOCK.lock();
-        let mut cache = self.inner.last_read.lock();
+        // Stamp before reading: a write racing this read leaves a newer stamp
+        // on disk, so the next call rereads rather than serving stale data.
+        let current = stamp(self.path()).ok().flatten();
+        let mut cache = self.inner.cache.lock();
+        if cache.stamp == current {
+            return cache.clone();
+        }
         if let Ok(mut data) = read_file(self.path()) {
             schema::migrate(&mut data);
-            *cache = data;
+            *cache = Arc::new(Cached::new(current, data));
         }
         cache.clone()
     }
@@ -146,13 +217,19 @@ impl Settings {
         schema::migrate(&mut data);
         let result = edit(&mut data)?;
         atomic_write(self.path(), &data)?;
-        *self.inner.last_read.lock() = data;
+        let written = stamp(self.path()).ok().flatten();
+        *self.inner.cache.lock() = Arc::new(Cached::new(written, data));
         Ok(result)
+    }
+
+    /// Shared resolved configuration; cheap enough for every request. Contains secrets.
+    pub fn current(&self) -> Arc<Value> {
+        self.state().resolved.clone()
     }
 
     /// Resolved configuration with defaults and unknown fields. Contains secrets.
     pub fn snapshot(&self) -> Value {
-        schema::resolve(&self.raw())
+        (*self.current()).clone()
     }
 
     /// Atomic partial update; validation failure leaves the entire file unchanged.
@@ -186,13 +263,13 @@ impl Settings {
 
     /// Explicit allowlist: never serializes arbitrary stored extension fields.
     pub fn view(&self) -> Value {
-        view_of(&self.raw())
+        view_of(&self.state().raw)
     }
     pub fn verify_password(&self, password: &str) -> bool {
-        security::verify_password(&self.raw(), password)
+        security::verify_password(&self.state().raw, password)
     }
     pub fn password_is_default(&self) -> bool {
-        security::password_is_default(&self.raw())
+        security::password_is_default(&self.state().raw)
     }
     /// Non-default password changes invalidate this store's shared sessions.
     pub fn set_password(&self, password: &str) -> Result<()> {
@@ -214,9 +291,11 @@ impl Settings {
 
     /// Live entries, including disabled entries; contains plaintext secrets.
     pub fn keys(&self) -> Vec<Value> {
-        keys::read_all(&self.raw())
-            .into_iter()
+        self.state()
+            .keys
+            .iter()
             .filter(|e| e["deleted_at"] == "")
+            .cloned()
             .collect()
     }
     pub fn reveal_key(&self, id: &str) -> Option<String> {
@@ -231,16 +310,23 @@ impl Settings {
         if supplied.is_empty() {
             return None;
         }
-        let entries = self.keys();
-        for mut entry in entries.iter().cloned() {
+        let state = self.state();
+        let mut live = state
+            .keys
+            .iter()
+            .filter(|e| e["deleted_at"] == "")
+            .peekable();
+        let none_live = live.peek().is_none();
+        for entry in live {
             if entry["enabled"] == true
-                && security::constant_time_eq(supplied.as_bytes(), text(&entry, "key").as_bytes())
+                && security::constant_time_eq(supplied.as_bytes(), text(entry, "key").as_bytes())
             {
+                let mut entry = entry.clone();
                 entry["source"] = json!("panel");
                 return Some(entry);
             }
         }
-        if entries.is_empty() {
+        if none_live {
             for key in extra_keys {
                 let key = key.trim();
                 if !key.is_empty()
@@ -255,9 +341,10 @@ impl Settings {
         None
     }
     pub fn auth_required(&self, extra_keys: &[String]) -> bool {
-        let raw = self.raw();
-        raw["auth_disabled"] != true
-            && (keys::read_all(&raw)
+        let state = self.state();
+        state.raw["auth_disabled"] != true
+            && (state
+                .keys
                 .iter()
                 .any(|e| e["enabled"] == true && e["deleted_at"] == "")
                 || extra_keys.iter().any(|k| !k.trim().is_empty()))
@@ -281,10 +368,11 @@ impl Settings {
         *self.inner.key_slots.lock().get(id).unwrap_or(&0)
     }
     pub fn limits(&self) -> Value {
-        self.snapshot()["limits"].clone()
+        self.current()["limits"].clone()
     }
     pub fn limit(&self, key: &str, realm: Realm) -> u64 {
-        let limits = self.limits();
+        let current = self.current();
+        let limits = &current["limits"];
         limits[key][realm.as_str()]
             .as_u64()
             .or_else(|| limits[key]["global"].as_u64())
@@ -292,7 +380,11 @@ impl Settings {
     }
     /// Internal egress definitions; proxy URLs may contain credentials.
     pub fn proxy_slots(&self) -> Vec<Value> {
-        proxies::read_all(&self.raw())
+        self.state().proxies.as_ref().clone()
+    }
+    /// Shared proxy slot list for per-request egress resolution.
+    pub fn proxy_slots_shared(&self) -> Arc<Vec<Value>> {
+        self.state().proxies.clone()
     }
     pub fn find_proxy_slot(&self, id: &str) -> Option<Value> {
         self.proxy_slots().into_iter().find(|s| s["id"] == id)

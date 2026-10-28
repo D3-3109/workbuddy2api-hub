@@ -12,8 +12,10 @@
 //!
 //! Queries scan incrementally from disk without retaining the log; daily totals
 //! additionally cache a verified cursor. Partial final lines are deferred, malformed
-//! lines skipped. Lines over 1 MiB are skipped to bound memory. No network, worker
-//! threads, persistent aggregate caches, or background pricing refresh are used.
+//! lines skipped. Lines over 1 MiB are skipped to bound memory. Parsed pricing is
+//! cached in memory and reloaded when any source file's size or mtime changes.
+//! Queries never block appends: rows are written with single O_APPEND writes and
+//! readers ignore an unterminated final line. No network or worker threads are used.
 
 mod analytics;
 mod pricing;
@@ -29,6 +31,8 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::SystemTime;
 use wbcore::{pyjson, pyval, timeutil};
 
 /// A usage directory. Safe to share via `Arc`; file writes are serialized within
@@ -40,13 +44,28 @@ pub struct UsageStore {
     daily: Mutex<DailyState>,
     enabled: AtomicBool,
     pricing_file: RwLock<Option<PathBuf>>,
+    pricing_cache: Mutex<Option<PricingCache>>,
+}
+
+type FileStamp = Option<(u64, Option<SystemTime>)>;
+
+struct PricingCache {
+    stamps: [FileStamp; 5],
+    file: Option<PathBuf>,
+    enabled: bool,
+    pricing: Arc<pricing::Pricing>,
+}
+
+fn file_stamp(path: &Option<PathBuf>) -> FileStamp {
+    let meta = fs::metadata(path.as_ref()?).ok()?;
+    Some((meta.len(), meta.modified().ok()))
 }
 
 #[derive(Default)]
 struct DailyState {
     day: String,
     cursor: scan::Cursor,
-    totals: Value,
+    totals: Arc<Value>,
 }
 
 impl UsageStore {
@@ -64,6 +83,7 @@ impl UsageStore {
             daily: Mutex::new(DailyState::default()),
             enabled: AtomicBool::new(true),
             pricing_file: RwLock::new(std::env::var_os("WB_PRICING_FILE").map(PathBuf::from)),
+            pricing_cache: Mutex::new(None),
         }
     }
 
@@ -78,12 +98,24 @@ impl UsageStore {
         *self.pricing_file.write() = Some(path.into());
     }
 
-    fn pricing(&self) -> io::Result<pricing::Pricing> {
-        pricing::Pricing::load(
-            &self.dir,
-            self.pricing_file.read().as_deref(),
-            self.enabled.load(Ordering::Relaxed),
-        )
+    fn pricing(&self) -> io::Result<Arc<pricing::Pricing>> {
+        let file = self.pricing_file.read().clone();
+        let enabled = self.enabled.load(Ordering::Relaxed);
+        let stamps = pricing::sources(&self.dir, file.as_deref()).map(|p| file_stamp(&p));
+        let mut cache = self.pricing_cache.lock();
+        if let Some(c) = cache.as_ref() {
+            if c.stamps == stamps && c.file == file && c.enabled == enabled {
+                return Ok(c.pricing.clone());
+            }
+        }
+        let loaded = Arc::new(pricing::Pricing::load(&self.dir, file.as_deref(), enabled)?);
+        *cache = Some(PricingCache {
+            stamps,
+            file,
+            enabled,
+            pricing: loaded.clone(),
+        });
+        Ok(loaded)
     }
 
     /// Append exactly one object; missing `at`/`iso` are filled, and successful
@@ -126,15 +158,16 @@ impl UsageStore {
     /// Query JSON payloads. Unknown or postponed routes return `Unsupported`;
     /// I/O failures remain errors, never fabricated zero counts.
     pub fn query(&self, path: &str, params: &Value, metadata: &Value) -> io::Result<Value> {
-        let _guard = self.io_lock.lock();
         let context = Context::new(params, metadata);
         let log = self.dir.join("usage.jsonl");
         match path.trim_end_matches('/') {
-            "/usage" | "/v1/usage" => views::totals(&log, &context, &self.pricing()?, self.started),
-            "/usage/recent" => views::recent(&log, &context, &self.pricing()?),
+            "/usage" | "/v1/usage" => {
+                views::totals(&log, &context, &*self.pricing()?, self.started)
+            }
+            "/usage/recent" => views::recent(&log, &context, &*self.pricing()?),
             "/usage/perf" => views::perf(&log, &context),
             "/usage/timeseries" => views::timeseries(&log, &context),
-            "/usage/analytics" => analytics::query(&log, &context, &self.pricing()?),
+            "/usage/analytics" => analytics::query(&log, &context, &*self.pricing()?),
             "/usage/by-account" => views::by_account(&log),
             "/pricing" => Ok(self.pricing()?.status(&self.dir)),
             _ => Err(io::Error::new(
@@ -159,7 +192,10 @@ impl UsageStore {
         if !self.enabled.load(Ordering::Relaxed) {
             return Err(invalid("pricing is disabled"));
         }
-        self.pricing()?.record(&self.dir, doc, at, merge)
+        let result = (*self.pricing()?).clone().record(&self.dir, doc, at, merge);
+        // Appends within one mtime tick can keep the size/mtime stamp unchanged.
+        *self.pricing_cache.lock() = None;
+        result
     }
 
     /// Explicitly postponed: remote refresh belongs to the gateway's HTTP layer.
@@ -178,14 +214,25 @@ impl UsageStore {
 
     /// Deterministic-clock variant useful for daily guards and tests.
     pub fn daily_totals_at(&self, now: f64) -> io::Result<Value> {
-        let _guard = self.io_lock.lock();
+        Ok((*self.daily_totals_shared_at(now)?).clone())
+    }
+
+    /// Shared result for per-request guards. An unchanged log costs one `stat`.
+    pub fn daily_totals_shared(&self) -> io::Result<Arc<Value>> {
+        self.daily_totals_shared_at(timeutil::now())
+    }
+
+    fn daily_totals_shared_at(&self, now: f64) -> io::Result<Arc<Value>> {
         let mut state = self.daily.lock();
         let path = self.dir.join("usage.jsonl");
         let day = timeutil::local_day_key(now);
+        if state.day == day && state.cursor.unchanged(&path) {
+            return Ok(state.totals.clone());
+        }
         if state.day != day || !state.cursor.matches(&path)? {
             *state = DailyState {
                 day,
-                totals: json!({"tokens":{},"credits":{},"models":{}}),
+                totals: Arc::new(json!({"tokens":{},"credits":{},"models":{}})),
                 ..Default::default()
             };
         }
@@ -193,7 +240,7 @@ impl UsageStore {
         let offset = state.cursor.offset;
         // Fold transactionally: a read failure must not leave counters advanced
         // while retaining the old cursor (which would double-count on retry).
-        let mut totals = state.totals.clone();
+        let mut totals = (*state.totals).clone();
         let end = scan::scan_from(&path, offset, |row| {
             let Some(row) = row else { return };
             let account = text(&row["account"]);
@@ -218,7 +265,7 @@ impl UsageStore {
         })?;
         let cursor = scan::Cursor::capture(&path, end)?;
         state.cursor = cursor;
-        state.totals = totals;
+        state.totals = Arc::new(totals);
         Ok(state.totals.clone())
     }
 }

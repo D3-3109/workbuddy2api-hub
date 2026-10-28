@@ -111,9 +111,8 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
             }
             None
         };
-        let enabled = app.settings.snapshot()["enable_anthropic_messages"] == json!(true)
-            || std::env::var("WB_ENABLE_ANTHROPIC_MESSAGES")
-                .is_ok_and(|s| matches!(s.as_str(), "1" | "true" | "yes" | "on"));
+        let enabled = app.settings.current()["enable_anthropic_messages"] == json!(true)
+            || app.env.enable_anthropic_messages;
         if anthropic && !enabled {
             return api_error(
                 400,

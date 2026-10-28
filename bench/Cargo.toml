@@ -1,0 +1,18 @@
+[package]
+name = "wb2api-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Offline load generator: fake SSE upstream + HTTP/1.1 keep-alive clients"
+
+# Standalone tool; not part of the gateway workspace or its lockfile.
+[workspace]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+httparse = "1"
+serde_json = "1"
+base64 = "0.22"
+
+[profile.release]
+debug = false

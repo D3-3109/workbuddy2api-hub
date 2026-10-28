@@ -10,12 +10,7 @@ mod state;
 mod wire;
 
 use clap::Parser;
-use parking_lot::{Mutex, RwLock};
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
-use tokio::sync::{watch, Semaphore};
+use std::sync::Arc;
 use wbcore::types::Realm;
 
 #[tokio::main]
@@ -85,24 +80,15 @@ async fn main() -> anyhow::Result<()> {
         })
         .unwrap_or(Realm::Intl);
     let usage = wbusage::UsageStore::new(args.usage_dir.clone());
-    let (shutdown, _) = watch::channel(false);
-    let app = Arc::new(state::App {
-        slots: Arc::new(Semaphore::new(args.max_concurrent_chat)),
+    let app = Arc::new(state::App::new(
         args,
         settings,
-        pool: Arc::new(pool),
-        catalog: RwLock::new(wbcatalog::Catalog::bundled()),
+        pool,
         usage,
-        http: wbhttp::Client::new()?,
-        realm: RwLock::new(realm),
+        wbhttp::Client::new()?,
+        realm,
         extra_keys,
-        login_limit: wbsettings::LoginRateLimiter::new(),
-        refresh_locks: Mutex::new(HashMap::new()),
-        restrictions: Mutex::new(HashMap::new()),
-        logs: Mutex::new(VecDeque::new()),
-        shutdown,
-        started: wbcore::timeutil::now(),
-    });
+    ));
     if app.settings.password_is_default() {
         app.log("WARN","panel password is still the baseline default; set WB_PANEL_PASSWORD before exposing the panel");
     }

@@ -14,6 +14,18 @@ pub struct SseEvent {
     pub data: Value,
 }
 impl SseEvent {
+    /// Append this event in SSE wire form; lets callers batch many events.
+    pub fn write_sse(&self, out: &mut String) {
+        out.push_str("event: ");
+        out.push_str(&self.event);
+        out.push_str("\ndata: ");
+        out.push_str(&if self.data.get("sequence_number").is_some() {
+            wbcore::pyjson::dumps_u(&self.data)
+        } else {
+            wbcore::pyjson::dumps_compact(&self.data)
+        });
+        out.push_str("\n\n");
+    }
     pub fn to_sse(&self) -> String {
         let data = if self.data.get("sequence_number").is_some() {
             wbcore::pyjson::dumps_u(&self.data)
@@ -363,6 +375,15 @@ impl ResponsesStream {
             return frames;
         };
         frames.extend(self.push_chunk(&chunk));
+        frames
+    }
+    /// `push_line` for a data line the caller already decoded.
+    pub fn push_value(&mut self, chunk: &Value) -> Vec<SseEvent> {
+        if self.terminal {
+            return vec![];
+        }
+        let mut frames = self.start();
+        frames.extend(self.push_chunk(chunk));
         frames
     }
     pub fn push_chunk(&mut self, chunk: &Value) -> Vec<SseEvent> {

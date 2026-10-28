@@ -205,6 +205,7 @@ pub struct Catalog {
     realms: [RealmCatalog; 2],
     limit_index: Value,
     output_probes: Value,
+    revision: u64,
 }
 
 impl Default for Catalog {
@@ -227,13 +228,20 @@ impl Catalog {
             realms: [make(Realm::Intl), make(Realm::Cn)],
             limit_index: json!({}),
             output_probes: json!({}),
+            revision: 0,
         }
+    }
+
+    /// Increases on every mutation, so callers can cache derived views.
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     fn state(&self, realm: Realm) -> &RealmCatalog {
         &self.realms[realm_index(realm)]
     }
     fn state_mut(&mut self, realm: Realm) -> &mut RealmCatalog {
+        self.revision += 1;
         &mut self.realms[realm_index(realm)]
     }
 
@@ -391,12 +399,14 @@ impl Catalog {
     /// Supply the decoded `accounts/model.json` index; no disk/network reads.
     /// Values may be `[context, output]` or `{context, output}`.
     pub fn set_limit_index(&mut self, index: Value) {
+        self.revision += 1;
         self.limit_index = index;
     }
 
     /// Supply the decoded `accounts/output_probes.json`; only `clamped` values
     /// are used, and are annotations, never overrides to model spec limits.
     pub fn set_output_probes(&mut self, probes: Value) {
+        self.revision += 1;
         self.output_probes = probes;
     }
 }

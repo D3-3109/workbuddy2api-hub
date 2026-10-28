@@ -115,6 +115,34 @@ impl Cursor {
             },
         })
     }
+    /// Same file, same size and same mtime as when captured: nothing to fold.
+    /// Only a positive answer is cheap; anything else needs `matches`. Recently
+    /// modified files always take the content check, because a same-size
+    /// in-place rewrite within one mtime tick is otherwise invisible.
+    pub fn unchanged(&self, path: &Path) -> bool {
+        let Ok(meta) = fs::metadata(path) else {
+            return false;
+        };
+        let settled = meta
+            .modified()
+            .ok()
+            .and_then(|m| SystemTime::now().duration_since(m).ok())
+            .is_some_and(|age| age > std::time::Duration::from_secs(2));
+        if !settled {
+            return false;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            if (meta.dev(), meta.ino()) != self.identity {
+                return false;
+            }
+        }
+        self.offset == self.size
+            && meta.len() == self.size
+            && meta.modified().ok() == self.modified
+            && meta.created().ok() == self.created
+    }
     pub fn matches(&self, path: &Path) -> io::Result<bool> {
         let meta = match fs::metadata(path) {
             Ok(m) => m,

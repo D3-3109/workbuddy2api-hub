@@ -802,8 +802,9 @@ pub fn affinity_route(
         return (String::new(), None);
     }
     let count = if stable && messages.len() > 2 { 3 } else { 2 };
-    let head = Value::Array(messages.iter().take(count).cloned().collect());
-    let digest = ids::sha256_hex(&pyjson::dumps_sorted(&head));
+    let digest = ids::sha256_hex(&pyjson::dumps_sorted_slice(
+        &messages[..count.min(messages.len())],
+    ));
     let key = format!("pfx-{}", &digest[..16]);
     if max_messages > 0 && messages.len() > max_messages {
         if page_size == 0 {

@@ -206,7 +206,7 @@ fn tier_update_is_atomic_and_preserves_tokens_and_restrictions() {
     let now = timeutil::now();
     let token = a.cred().access_token;
     let mut guards = Guards::default();
-    guards.pro_models.insert("pro".into());
+    std::sync::Arc::make_mut(&mut guards.pro_models).insert("pro".into());
     a.set_guards(guards);
     assert!(matches!(
         a.readiness("pro", now),
@@ -267,7 +267,7 @@ fn guard_unknown_free_paid_model_and_near_expiry() {
     ));
     g.daily_tokens_today = Some(99);
     g.daily_credits_today = Some(5.0);
-    g.free_models.insert("hy3".into());
+    std::sync::Arc::make_mut(&mut g.free_models).insert("hy3".into());
     a.set_guards(g.clone());
     assert_eq!(a.readiness("hy3", now), Readiness::Ready);
     assert!(matches!(
@@ -286,7 +286,7 @@ fn guard_unknown_free_paid_model_and_near_expiry() {
             ..
         }
     ));
-    g.pro_models.insert("pro".into());
+    std::sync::Arc::make_mut(&mut g.pro_models).insert("pro".into());
     a.set_guards(g);
     assert!(matches!(
         a.readiness("pro", now),

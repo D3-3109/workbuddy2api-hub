@@ -168,9 +168,9 @@ fn realm(app: &App, value: &Value) -> Result<Realm, Reply> {
         _ => Err(fail(400, "realm must be intl or cn")),
     }
 }
-fn request_options() -> wbaccounts::RequestOptions {
+fn request_options(app: &App) -> wbaccounts::RequestOptions {
     wbaccounts::RequestOptions {
-        cn_chat_base: std::env::var("WB_CN_CHAT_UPSTREAM").ok(),
+        cn_chat_base: app.env.cn_chat_upstream.clone(),
         timeout_secs: 15.0,
         ..Default::default()
     }
@@ -282,10 +282,11 @@ async fn login_start(app: Arc<App>, payload: &Value) -> Reply {
         key: key.clone(),
         retained: false,
     };
-    let request = match wbaccounts::build_oauth_start_request(realm, platform, &request_options()) {
-        Ok(r) => r,
-        Err(_) => return fail(500, "OAuth request configuration is invalid"),
-    };
+    let request =
+        match wbaccounts::build_oauth_start_request(realm, platform, &request_options(&app)) {
+            Ok(r) => r,
+            Err(_) => return fail(500, "OAuth request configuration is invalid"),
+        };
     let (response, oversized) = match fetch(&app, request, JSON_LIMIT).await {
         Ok(r) => r,
         Err(r) => return r,
@@ -364,11 +365,14 @@ async fn login_poll(app: Arc<App>, key: &str) -> Reply {
         PollDecision::Request(r, p, s) => (r, p, s),
     };
     let _flight = LoginFlight(state.clone());
-    let request =
-        match wbaccounts::build_oauth_poll_request(realm, &upstream_state, &request_options()) {
-            Ok(r) => r,
-            Err(_) => return fail(500, "OAuth request configuration is invalid"),
-        };
+    let request = match wbaccounts::build_oauth_poll_request(
+        realm,
+        &upstream_state,
+        &request_options(&app),
+    ) {
+        Ok(r) => r,
+        Err(_) => return fail(500, "OAuth request configuration is invalid"),
+    };
     let (response, oversized) = match fetch(&app, request, JSON_LIMIT).await {
         Ok(r) => r,
         Err(r) => return r,
@@ -656,9 +660,9 @@ async fn account_test(app: Arc<App>, payload: &Value) -> Reply {
             return r;
         }
         let mut options = wbaccounts::ChatOptions::default();
-        options.desktop_chat_compat = crate::dispatch::desktop_chat_compat_enabled();
-        options.request = request_options();
-        options.request.proxy = account.resolve_proxy(&json!(app.settings.proxy_slots()));
+        options.desktop_chat_compat = app.env.desktop_chat_compat;
+        options.request = request_options(&app);
+        options.request.proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
         options.model = Some(model.into());
         options.device_token = settings["upstream"]["device_token"]
             .as_str()
@@ -848,13 +852,13 @@ async fn catalog_refresh(app: Arc<App>, payload: &Value) -> Reply {
     if let Err(r) = ready(&app, &account, "").await {
         return r;
     }
-    let proxy = account.resolve_proxy(&json!(app.settings.proxy_slots()));
+    let proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
     let egress = if proxy.is_empty() {
         Egress::Direct
     } else {
         Egress::Proxy(proxy)
     };
-    let base = std::env::var("WB_CN_CHAT_UPSTREAM").ok();
+    let base = app.env.cn_chat_upstream.clone();
     // Exactly one standard config request: no identity/account fallback.
     let Some(request) = wbcatalog::config_requests(&account.cred(), egress, base.as_deref())
         .into_iter()

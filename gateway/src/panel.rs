@@ -60,13 +60,7 @@ pub async fn post(
         return denied();
     }
     if path == "/panel/login" {
-        let trusted = std::env::var("WB_TRUSTED_PROXIES")
-            .unwrap_or_default()
-            .split(',')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
+        let trusted = &app.env.trusted_proxies;
         let bucket = wbsettings::login_rate_limit_key(
             &peer.ip().to_string(),
             wire::header_text(headers, "x-real-ip"),
@@ -843,23 +837,34 @@ fn logs(app: &App, q: &Query, export: bool) -> Reply {
         .get("search")
         .map(|s| s.to_lowercase())
         .unwrap_or_default();
-    let all = app.logs.lock().iter().cloned().collect::<Vec<_>>();
-    let max_id = all.last().and_then(|v| v["id"].as_u64()).unwrap_or(0);
-    let total = all.len();
-    let mut rows = all
-        .into_iter()
-        .filter(|v| {
-            (since == 0 || v["id"].as_u64().unwrap_or(0) > since)
-                && (level.is_empty() || text(v, "level").eq_ignore_ascii_case(&level))
-                && (tag.is_empty() || text(v, "tag").eq_ignore_ascii_case(&tag))
+    // Walk newest-first and stop at the limit, serializing only returned rows.
+    let (mut rows, max_id, total) = {
+        let ring = app.logs.lock();
+        let matches = |e: &&crate::state::LogEntry| {
+            (level.is_empty() || e.level.eq_ignore_ascii_case(&level))
+                && (tag.is_empty() || e.tag.eq_ignore_ascii_case(&tag))
                 && (search.is_empty()
-                    || text(v, "msg").to_lowercase().contains(&search)
-                    || text(v, "tag").to_lowercase().contains(&search))
-        })
-        .collect::<Vec<_>>();
-    if since == 0 && rows.len() > limit {
-        rows.drain(..rows.len() - limit);
-    }
+                    || e.msg.to_lowercase().contains(&search)
+                    || e.tag.to_lowercase().contains(&search))
+        };
+        let rows: Vec<Value> = if since == 0 {
+            let mut newest: Vec<Value> = ring
+                .iter()
+                .rev()
+                .filter(matches)
+                .take(limit)
+                .map(|e| e.to_json())
+                .collect();
+            newest.reverse();
+            newest
+        } else {
+            ring.since(since)
+                .filter(matches)
+                .map(|e| e.to_json())
+                .collect()
+        };
+        (rows, ring.max_id(), ring.len())
+    };
     let secrets = log_secrets(app);
     for row in &mut rows {
         scrub_secrets(row, &secrets);
@@ -1079,9 +1084,8 @@ mod tests {
     use super::*;
     use clap::Parser;
     use http_body_util::BodyExt;
-    use parking_lot::RwLock;
-    use std::{collections::VecDeque, path::PathBuf};
-    use tokio::sync::{watch, Semaphore};
+    use std::path::PathBuf;
+    use tokio::sync::Semaphore;
 
     struct Fixture {
         app: Arc<App>,
@@ -1102,24 +1106,17 @@ mod tests {
             let settings =
                 wbsettings::Settings::load(args.accounts_dir.join("settings.json")).unwrap();
             let usage = wbusage::UsageStore::new(args.usage_dir.clone());
-            let (shutdown, _) = watch::channel(false);
-            let app = Arc::new(App {
+            let mut app = App::new(
                 args,
                 settings,
+                wbaccounts::AccountPool::new(vec![]),
                 usage,
-                shutdown,
-                pool: Arc::new(wbaccounts::AccountPool::new(vec![])),
-                catalog: RwLock::new(wbcatalog::Catalog::bundled()),
-                http: wbhttp::Client::new().unwrap(),
-                realm: RwLock::new(Realm::Intl),
-                extra_keys: vec!["test-launcher-secret".into()],
-                slots: Arc::new(Semaphore::new(1)),
-                login_limit: wbsettings::LoginRateLimiter::new(),
-                refresh_locks: Mutex::new(HashMap::new()),
-                restrictions: Mutex::new(HashMap::new()),
-                logs: Mutex::new(VecDeque::new()),
-                started: timeutil::now(),
-            });
+                wbhttp::Client::new().unwrap(),
+                Realm::Intl,
+                vec!["test-launcher-secret".into()],
+            );
+            app.slots = Arc::new(Semaphore::new(1));
+            let app = Arc::new(app);
             Self { app, dir }
         }
         fn headers(&self) -> HeaderMap {
@@ -1406,12 +1403,14 @@ mod tests {
         .await;
         assert!(!accounts.to_string().contains(&account.cred().access_token));
         assert_eq!(accounts["accounts"][0]["nickname"], "138****5678");
-        f.app.logs.lock().push_back(
-            json!({"id":1,"level":"INFO","tag":"test","msg":"password=already-deleted-secret"}),
-        );
-        f.app.logs.lock().push_back(
-            json!({"id":2,"level":"INFO","tag":"test","msg":"credential ck_fixture.secret-part"}),
-        );
+        f.app
+            .logs
+            .lock()
+            .push("INFO", "test", "password=already-deleted-secret".into());
+        f.app
+            .logs
+            .lock()
+            .push("INFO", "test", "credential ck_fixture.secret-part".into());
         let logs = payload(get(f.app.clone(), "/logs", &headers, &query, peer()).await)
             .await
             .to_string();

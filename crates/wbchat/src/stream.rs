@@ -125,6 +125,12 @@ impl ChatStream {
         }
     }
 
+    /// Skip building the non-stream `completion()`; streaming proxies never read it.
+    pub fn without_completion(mut self) -> Self {
+        self.aggregator = None;
+        self
+    }
+
     pub fn response_id(&self) -> &str {
         &self.response_id
     }
@@ -296,7 +302,7 @@ impl ChatStream {
             return Vec::new();
         }
         let mut output = Vec::new();
-        let mut chunk = match serde_json::from_str::<Value>(data) {
+        let chunk = match serde_json::from_str::<Value>(data) {
             Ok(v) if v.is_object() => v,
             // Baseline passthrough for non-object/non-JSON upstream data.
             _ => {
@@ -304,6 +310,32 @@ impl ChatStream {
                 return output;
             }
         };
+        self.push_object(chunk, output)
+    }
+
+    /// `push_line` for a line the caller already parsed: `raw` is the full
+    /// line and `chunk` its decoded JSON object. Avoids parsing twice.
+    pub fn push_value(&mut self, raw: &str, chunk: Value) -> Vec<String> {
+        if self.is_terminal() {
+            return Vec::new();
+        }
+        self.clock();
+        self.received_bytes = self.received_bytes.saturating_add(raw.len());
+        if self.received_bytes > self.max_bytes {
+            return self.abort(
+                json!({"message":format!("upstream stream exceeds {} byte limit", self.max_bytes),
+                "type":"upstream_error", "param":null, "code":"upstream_stream_error"}),
+            );
+        }
+        if !chunk.is_object() {
+            let mut output = Vec::new();
+            self.emit_raw(wbcore::sse::strip_data_prefix(raw), &mut output);
+            return output;
+        }
+        self.push_object(chunk, Vec::new())
+    }
+
+    fn push_object(&mut self, mut chunk: Value, mut output: Vec<String>) -> Vec<String> {
         if self.accounting.first_chunk_at.is_none() {
             self.accounting.first_chunk_at = Some(wbcore::timeutil::now());
         }
@@ -356,12 +388,10 @@ impl ChatStream {
             // Clean choices separately: an empty choice must not drop a useful
             // parallel choice from the same upstream frame.
             choices.retain_mut(|ch| {
-                let mut one = json!({"choices":[ch.clone()]});
-                if clean_chunk_value(&mut one) == CleanResult::Drop {
-                    return false;
-                }
-                *ch = one["choices"][0].clone();
-                true
+                let mut one = json!({"choices":[ch.take()]});
+                let keep = clean_chunk_value(&mut one) != CleanResult::Drop;
+                *ch = one["choices"][0].take();
+                keep
             });
             if !choices.is_empty() {
                 self.emit(&chunk, &mut output);

@@ -57,6 +57,25 @@ impl Opts {
         sort_keys: true,
         indent: None,
     };
+    /// `dumps_sorted` of a list given as a slice, without building a `Value::Array`.
+    pub fn dumps_sorted_slice(items: &[Value]) -> String {
+        let o = Opts::SORTED;
+        let mut out = String::with_capacity(128);
+        if items.is_empty() {
+            out.push_str("[]");
+            return out;
+        }
+        out.push('[');
+        for (i, item) in items.iter().enumerate() {
+            if i > 0 {
+                out.push_str(o.item_sep);
+            }
+            write_value(&mut out, item, &o, 1);
+        }
+        out.push(']');
+        out
+    }
+
     /// `json.dumps(v, ensure_ascii=False, indent=2)`
     pub const PRETTY: Opts = Opts {
         item_sep: ",",
@@ -96,6 +115,25 @@ pub fn dumps_compact(v: &Value) -> String {
 /// `json.dumps(v, ensure_ascii=False, sort_keys=True)`
 pub fn dumps_sorted(v: &Value) -> String {
     dumps_with(v, Opts::SORTED)
+}
+
+/// `dumps_sorted` of a list given as a slice, without building a `Value::Array`.
+pub fn dumps_sorted_slice(items: &[Value]) -> String {
+    let o = Opts::SORTED;
+    let mut out = String::with_capacity(128);
+    if items.is_empty() {
+        out.push_str("[]");
+        return out;
+    }
+    out.push('[');
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            out.push_str(o.item_sep);
+        }
+        write_value(&mut out, item, &o, 1);
+    }
+    out.push(']');
+    out
 }
 
 /// `json.dumps(v, ensure_ascii=False, indent=2)`
@@ -175,35 +213,56 @@ fn write_value(out: &mut String, v: &Value, o: &Opts, level: usize) {
     }
 }
 
+fn needs_escape(b: u8, ensure_ascii: bool) -> bool {
+    b < 0x20 || b == b'"' || b == b'\\' || (ensure_ascii && b > 0x7e)
+}
+
 fn write_str(out: &mut String, s: &str, ensure_ascii: bool) {
     out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 => {
-                let _ = write!(out, "\\u{:04x}", c as u32);
-            }
-            c if ensure_ascii && (c as u32) > 0x7e => {
-                let cp = c as u32;
-                if cp > 0xffff {
-                    let v = cp - 0x10000;
-                    let hi = 0xd800 + (v >> 10);
-                    let lo = 0xdc00 + (v & 0x3ff);
-                    let _ = write!(out, "\\u{:04x}\\u{:04x}", hi, lo);
-                } else {
-                    let _ = write!(out, "\\u{:04x}", cp);
-                }
-            }
-            c => out.push(c),
+    // Copy runs that need no escaping in one go; most model text is such a run.
+    let bytes = s.as_bytes();
+    let mut start = 0;
+    while start < bytes.len() {
+        let run = bytes[start..]
+            .iter()
+            .position(|b| needs_escape(*b, ensure_ascii))
+            .map_or(bytes.len(), |n| start + n);
+        out.push_str(&s[start..run]);
+        if run == bytes.len() {
+            break;
         }
+        let c = s[run..].chars().next().expect("char boundary");
+        start = run + c.len_utf8();
+        write_char(out, c, ensure_ascii);
     }
     out.push('"');
+}
+
+fn write_char(out: &mut String, c: char, ensure_ascii: bool) {
+    match c {
+        '"' => out.push_str("\\\""),
+        '\\' => out.push_str("\\\\"),
+        '\n' => out.push_str("\\n"),
+        '\r' => out.push_str("\\r"),
+        '\t' => out.push_str("\\t"),
+        '\u{08}' => out.push_str("\\b"),
+        '\u{0c}' => out.push_str("\\f"),
+        c if (c as u32) < 0x20 => {
+            let _ = write!(out, "\\u{:04x}", c as u32);
+        }
+        c if ensure_ascii && (c as u32) > 0x7e => {
+            let cp = c as u32;
+            if cp > 0xffff {
+                let v = cp - 0x10000;
+                let hi = 0xd800 + (v >> 10);
+                let lo = 0xdc00 + (v & 0x3ff);
+                let _ = write!(out, "\\u{:04x}\\u{:04x}", hi, lo);
+            } else {
+                let _ = write!(out, "\\u{:04x}", cp);
+            }
+        }
+        c => out.push(c),
+    }
 }
 
 /// Python-style finite float formatting: Rust's shortest round-trip digits,
@@ -297,6 +356,24 @@ mod tests {
         for (f, want) in cases {
             assert_eq!(float_repr(f), want, "{f}");
         }
+    }
+
+    #[test]
+    fn slice_and_run_escaping_match_value_path() {
+        let items = vec![
+            json!({"role":"user","content":"plain ascii run then \"quote\" and \\ back\u{1}"}),
+            json!({"z":1,"a":["混合 text 😀", "\t\r\n"]}),
+        ];
+        assert_eq!(
+            dumps_sorted_slice(&items),
+            dumps_sorted(&Value::Array(items.clone()))
+        );
+        assert_eq!(dumps_sorted_slice(&[]), "[]");
+        assert_eq!(
+            dumps(&json!("a\u{7f}é😀\"")),
+            r#""a\u007f\u00e9\ud83d\ude00\"""#
+        );
+        assert_eq!(dumps_u(&json!("a\u{7f}é")), "\"a\u{7f}é\"");
     }
 
     #[test]

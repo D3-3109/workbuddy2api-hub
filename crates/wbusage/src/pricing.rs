@@ -31,6 +31,7 @@ pub fn policy_id(model: &str, flat: &Value, bands: &Value, usd_cny: f64) -> Stri
     hex::encode(Sha1::digest(pyjson::dumps_sorted(&payload).as_bytes()))[..12].to_string()
 }
 
+#[derive(Clone)]
 pub(crate) struct Pricing {
     snapshot: Value,
     policies: BTreeMap<String, Value>,
@@ -39,6 +40,24 @@ pub(crate) struct Pricing {
     markup: Value,
     enabled: bool,
 }
+fn builtin() -> Value {
+    static PARSED: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| {
+        serde_json::from_str(BUILTIN).expect("bundled pricing snapshot")
+    });
+    PARSED.clone()
+}
+
+/// Files that feed `Pricing::load`, in a fixed order for change detection.
+pub(crate) fn sources(dir: &Path, snapshot_file: Option<&Path>) -> [Option<std::path::PathBuf>; 5] {
+    [
+        snapshot_file.map(Path::to_path_buf),
+        Some(dir.join("pricing-policies.jsonl")),
+        Some(dir.join("pricing-timeline.jsonl")),
+        Some(dir.join("pricing-overrides.json")),
+        Some(dir.join("pricing-markup.json")),
+    ]
+}
+
 fn read_json(path: &Path) -> Option<Value> {
     let meta = fs::metadata(path).ok()?;
     if meta.len() > 32 * 1024 * 1024 {
@@ -51,7 +70,7 @@ impl Pricing {
         let snapshot = snapshot_file
             .and_then(read_json)
             .filter(|v| v["models"].is_object())
-            .unwrap_or_else(|| serde_json::from_str(BUILTIN).expect("bundled pricing snapshot"));
+            .unwrap_or_else(builtin);
         let mut policies = BTreeMap::new();
         scan::scan(&dir.join("pricing-policies.jsonl"), |r| {
             let id = text(&r["id"]);

@@ -130,7 +130,7 @@ pub struct App {
     pub settings: wbsettings::Settings,
     pub pool: Arc<wbaccounts::AccountPool>,
     pub catalog: RwLock<wbcatalog::Catalog>,
-    pub usage: wbusage::UsageStore,
+    pub usage: Arc<wbusage::UsageStore>,
     pub http: wbhttp::Client,
     pub realm: RwLock<Realm>,
     pub extra_keys: Vec<String>,
@@ -143,6 +143,8 @@ pub struct App {
     pub started: f64,
     pub env: Env,
     pub model_sets: Mutex<ModelSets>,
+    /// Usage rows handed to the blocking pool and not yet written.
+    pub pending_writes: std::sync::atomic::AtomicUsize,
 }
 
 #[derive(Default)]
@@ -167,7 +169,7 @@ impl App {
             settings,
             pool: Arc::new(pool),
             catalog: RwLock::new(wbcatalog::Catalog::bundled()),
-            usage,
+            usage: Arc::new(usage),
             http,
             realm: RwLock::new(realm),
             extra_keys,
@@ -179,6 +181,7 @@ impl App {
             started: now(),
             env: Env::from_process(),
             model_sets: Mutex::new(ModelSets::default()),
+            pending_writes: Default::default(),
         }
     }
 

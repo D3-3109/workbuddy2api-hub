@@ -1402,7 +1402,7 @@ async fn run_stream(
 
 #[allow(clippy::too_many_arguments)]
 fn record(
-    app: &App,
+    app: &Arc<App>,
     account: Option<&Arc<Account>>,
     model: &str,
     key: Option<&Value>,
@@ -1451,9 +1451,28 @@ fn record(
     if let (Some(a), Some(u)) = (account, usage) {
         a.consume_credit(wbcore::pyval::py_float(&u["credit"]).unwrap_or(0.0));
     }
-    if app.usage.append(row).is_err() {
-        app.log("ERROR", "could not persist request usage row");
-    }
+    persist_row(app, row);
+}
+
+/// Append off the async worker threads so a slow disk cannot stall other
+/// connections. Outside a runtime (unit tests, Drop at exit) write inline.
+fn persist_row(app: &Arc<App>, row: Value) {
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        if app.usage.append(row).is_err() {
+            app.log("ERROR", "could not persist request usage row");
+        }
+        return;
+    };
+    let app = app.clone();
+    app.pending_writes
+        .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    runtime.spawn_blocking(move || {
+        if app.usage.append(row).is_err() {
+            app.log("ERROR", "could not persist request usage row");
+        }
+        app.pending_writes
+            .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+    });
 }
 
 #[cfg(test)]

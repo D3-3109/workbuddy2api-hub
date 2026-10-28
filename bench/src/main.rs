@@ -408,7 +408,14 @@ async fn main() {
     };
     lat.sort_unstable();
     usage_times.sort_unstable();
+    // Every completed request must leave exactly one usage row. Give the
+    // gateway a moment to finish appends before counting.
+    tokio::time::sleep(Duration::from_millis(500)).await;
     let _ = child.kill().await;
+    let rows_written = std::fs::read_to_string(usage.join("usage.jsonl"))
+        .map(|t| t.lines().count())
+        .unwrap_or(0)
+        .saturating_sub(o.usage_rows);
     println!(
         "{}",
         serde_json::json!({
@@ -417,6 +424,7 @@ async fn main() {
             "ok": lat.len(), "failed": fail, "rps": (lat.len() as f64 / wall * 10.0).round() / 10.0,
             "p50_ms": pct(&lat, 0.5), "p90_ms": pct(&lat, 0.9), "p99_ms": pct(&lat, 0.99), "max_ms": pct(&lat, 1.0),
             "upstream_connections": upstream_conns.load(Ordering::Relaxed),
+            "usage_rows_written": rows_written,
             "usage_poll": usage_times.len(), "usage_p50_ms": pct(&usage_times, 0.5), "usage_max_ms": pct(&usage_times, 1.0),
         })
     );

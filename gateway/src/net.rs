@@ -68,6 +68,16 @@ pub async fn serve(app: Arc<App>) -> anyhow::Result<()> {
     {
         connections.abort_all();
     }
+    // Usage rows are billing records: give queued appends a bounded chance to land.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while app
+        .pending_writes
+        .load(std::sync::atomic::Ordering::Acquire)
+        > 0
+        && tokio::time::Instant::now() < deadline
+    {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     Ok(())
 }
 

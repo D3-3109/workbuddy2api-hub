@@ -166,8 +166,10 @@ fn dashboard(lang: &str, headers: &hyper::HeaderMap) -> Reply {
             let layer = concat!(
                 "<style id=\"wb-refresh\">\n",
                 include_str!("../../assets/ui/refresh.css"),
+                include_str!("../../assets/ui/accounts.css"),
                 "</style>\n<script id=\"wb-rust-build\">\n",
                 include_str!("../../assets/ui/rust-build.js"),
+                include_str!("../../assets/ui/accounts.js"),
                 "</script>\n</body>"
             );
             let html = include_str!("../../assets/dashboard.html")

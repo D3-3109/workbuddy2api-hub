@@ -221,7 +221,7 @@ fn no_store(mut reply: Reply) -> Reply {
     );
     reply
 }
-fn ok(mut value: Value) -> Reply {
+pub(crate) fn ok(mut value: Value) -> Reply {
     mask_names(&mut value);
     no_store(wire::json_reply(200, value))
 }
@@ -367,24 +367,12 @@ fn get_local(app: &App, path: &str, headers: &HeaderMap, q: &Query) -> Reply {
         // loads them on every visit; an empty, explicitly unsupported payload
         // lets it render an empty state instead of a red error each time.
         // Every action endpoint behind them still answers 501.
-        "/tasks" => ok(json!({"supported":false,"tasks":[],"accounts":[],"summary":{}})),
-        "/activity/history" => ok(json!({"supported":false,"rows":[],"total":0})),
         "/accounts/credits/grants" => ok(json!({"supported":false,"rows":[],"summary":{}})),
         "/updates/backups" => ok(
             json!({"supported":false,"backups":[],"rollback_enabled":false,
             "current_version":wbcore::RUST_VERSION}),
         ),
         "/agents" => ok(agents_view(app)),
-        // The only background work in this build is the maintenance loop:
-        // near-expiry token refresh every minute and a daily catalog refresh.
-        "/scheduler" => {
-            let enabled = !app.args.offline && app.args.test_upstream.is_none();
-            let mode = "凭证到期前自动刷新（每分钟检查）· 模型目录每日刷新";
-            ok(
-                json!({"supported":false,"enabled":enabled,"mode":mode,"mode_intl":mode,"mode_cn":mode,
-                "last_run_time":null,"next_run_time":null,"windows":[],"quota_scans":[]}),
-            )
-        }
         _ => unsupported(),
     }
 }
@@ -438,15 +426,6 @@ fn post_local(app: &App, path: &str, body: Value, _headers: &HeaderMap, _q: &Que
                     400,
                     "authentication cannot be disabled on a network listener",
                 );
-            }
-            if body.as_object().is_some_and(|fields| {
-                fields.keys().any(|key| {
-                    key.starts_with("daily_chat_")
-                        || key == "schedule"
-                        || key == "restart_scheduler"
-                })
-            }) {
-                return fail(501, "daily activity scheduler settings are not supported by this Rust build; stored configuration was not changed");
             }
             if UNSUPPORTED_SWITCHES.iter().any(|key| body[*key] == true)
                 || body["quota_scan_models"]
@@ -546,7 +525,7 @@ fn settings_view(app: &App) -> Value {
         "vscode_ide": defaults.vscode_ide, "cli": defaults.cli,
         "sdk": defaults.sdk, "node": defaults.node,
     });
-    view["management_capabilities"] = json!({"self_update":false,"scheduler":false,
+    view["management_capabilities"] = json!({"self_update":false,"scheduler":true,"daily_tasks":true,
         "desktop_import":false,"proxy_probe":false,"log_database":false,"pricing_refresh":false,
         "quota_scan":false,"log_mode":"memory"});
     view["unsupported_settings"] = json!(UNSUPPORTED_SWITCHES);
@@ -554,9 +533,9 @@ fn settings_view(app: &App) -> Value {
         view[*key] = json!(false);
     }
     view["quota_scan_models"] = json!([]);
-    view["daily_chat_web"] = json!(false);
-    view["daily_chat_supported"] = json!(false);
-    view["unsupported_setting_prefixes"] = json!(["daily_chat_"]);
+    view["daily_chat_web"] = json!(app.settings.current()["daily_chat_web"] != false);
+    view["daily_chat_supported"] = json!(true);
+    view["unsupported_setting_prefixes"] = json!([]);
     view
 }
 fn query_realm(
@@ -1272,7 +1251,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upstream_daily_chat_settings_do_not_claim_scheduler_support() {
+    async fn schedule_and_daily_chat_settings_are_saved() {
         let f = Fixture::new();
         f.app
             .settings
@@ -1281,10 +1260,8 @@ mod tests {
         let before = f.app.settings.snapshot();
         let headers = f.headers();
         for input in [
-            json!({"daily_chat_budget_seconds":300}),
-            json!({"daily_chat_models":["gpt-5.5"]}),
-            json!({"daily_chat_web":true}),
-            json!({"schedule":{"checkin":[9]}}),
+            json!({"daily_chat_web":false}),
+            json!({"schedule":{"checkin":[8],"daily_chat":["07:45"]}}),
         ] {
             let reply = post(
                 f.app.clone(),
@@ -1295,13 +1272,17 @@ mod tests {
                 peer(),
             )
             .await;
-            assert_eq!(reply.status(), 501);
-            assert_eq!(f.app.settings.snapshot(), before);
+            assert_eq!(reply.status(), 200);
         }
+        let after = f.app.settings.snapshot();
+        assert_ne!(after, before);
+        assert_eq!(after["schedule"]["checkin"], json!([8]));
+        assert_eq!(after["schedule"]["daily_chat"], json!(["07:45"]));
         let view =
             payload(get(f.app.clone(), "/settings", &headers, &Query::new(), peer()).await).await;
-        assert_eq!(view["daily_chat_supported"], false);
+        assert_eq!(view["daily_chat_supported"], true);
         assert_eq!(view["daily_chat_web"], false);
+        assert_eq!(view["management_capabilities"]["scheduler"], true);
         assert_eq!(view["upstream_version"], "1.8.0");
         assert_eq!(view["version"], wbcore::RUST_VERSION);
     }
@@ -1370,18 +1351,12 @@ mod tests {
         }
         let headers = f.headers();
         // Read-only views of unported features render as empty, never as success.
-        for path in [
-            "/tasks",
-            "/activity/history",
-            "/accounts/credits/grants",
-            "/updates/backups",
-            "/agents",
-        ] {
+        for path in ["/accounts/credits/grants", "/updates/backups", "/agents"] {
             let reply = get(f.app.clone(), path, &headers, &Query::new(), peer()).await;
             assert_eq!(reply.status(), 200, "{path}");
             assert_eq!(payload(reply).await["supported"], false, "{path}");
         }
-        for path in ["/tasks/claim", "/agents/configure", "/updates/rollback"] {
+        for path in ["/agents/configure", "/updates/rollback"] {
             assert_eq!(
                 post(
                     f.app.clone(),

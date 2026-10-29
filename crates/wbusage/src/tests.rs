@@ -422,3 +422,144 @@ fn analytics_key_buckets_and_zero_traffic_accounts() {
     assert!(keys.iter().any(|k| k["key"] == "__unknown_key__"));
     assert!(keys.iter().any(|k| k["name"] == "Named"));
 }
+
+/// The index must answer every aggregate view exactly like the streaming scan,
+/// including JSON number types and key order, on irregular rows.
+#[test]
+fn indexed_views_match_streaming_views() {
+    let t = fixture();
+    let store = t.store();
+    let now = timeutil::now();
+    let mut extra = String::new();
+    let odd = [
+        json!({"at":now-10.0,"model":"hy3","account":"x","credit":"1.5","total_tokens":"7","prompt_tokens":3.5,"key":"k1"}),
+        json!({"at":now-9.0,"model":"","account":"","realm":"cn","error":"boom","total_tokens":null,"key":null}),
+        json!({"at":now-8.0,"model":"minimax-m3","outcome":"client_aborted","credit":2,"ttft_ms":0,"tokens_per_sec":0}),
+        json!({"at":now-7.0,"model":"gpt-5.5","account":"y","cached_tokens":10,"prompt_tokens":5,"completion_tokens":1e6,"cost_policy":"nope"}),
+        json!({"at":now-6.0}),
+        json!({"at":now-5.0,"model":"deepseek-v4.1-flash","account":"x","realm":"intl","credit":0.25,"key":"","elapsed_ms":"12"}),
+        json!({"at":"bad","model":7,"account":true,"key":3,"realm":["cn"]}),
+    ];
+    for row in &odd {
+        extra.push_str(&pyjson::dumps_u(row));
+        extra.push('\n');
+    }
+    extra.push_str("{not json}\n[1,2]\n   \n");
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(t.0.join("usage.jsonl"))
+        .unwrap();
+    file.write_all(extra.as_bytes()).unwrap();
+    file.write_all(b"{\"at\":1,\"partial\":").unwrap();
+    drop(file);
+    let metadata = json!({"realm":"intl","accounts":[{"uid":"acct-0001","realm":"cn","nickname":"A"},{"uid":"x","realm":"intl"}],
+        "api_keys":[{"id":"k1","name":"One"},{"id":"gone","enabled":false}],"model_realms":{"hy3":"cn"}});
+    let windows = [
+        json!({}),
+        json!({"realm":"all"}),
+        json!({"realm":"cn","range":"today"}),
+        json!({"realm":"intl","range":"custom","since":1790418153.0,"until":1790500000.0}),
+        json!({"range":"custom","since":now-9.5,"until":now,"bucket":"60"}),
+        json!({"realm":"all","range":"week","limit":"3","page":"2","sample":"10"}),
+        json!({"realm":"all","limit":"1000","page":"1","sample":"20000"}),
+        json!({"realm":"nowhere","page":"99"}),
+    ];
+    let pricing = store.pricing().unwrap();
+    let log = t.0.join("usage.jsonl");
+    for params in &windows {
+        let ctx = Context::new(params, &metadata);
+        let mut ix = index::Index::default();
+        ix.refresh(&log).unwrap();
+        let pairs = [
+            (
+                "totals",
+                views::totals(&log, &ctx, &pricing, 1.0).unwrap(),
+                index::totals(&mut ix, &log, &ctx, &pricing, 1.0).unwrap(),
+            ),
+            (
+                "recent",
+                views::recent(&log, &ctx, &pricing).unwrap(),
+                index::recent(&mut ix, &log, &ctx, &pricing)
+                    .unwrap()
+                    .unwrap(),
+            ),
+            (
+                "perf",
+                views::perf(&log, &ctx).unwrap(),
+                index::perf(&mut ix, &log, &ctx).unwrap().unwrap(),
+            ),
+            (
+                "timeseries",
+                views::timeseries(&log, &ctx).unwrap(),
+                index::timeseries(&mut ix, &log, &ctx).unwrap().unwrap(),
+            ),
+            (
+                "analytics",
+                analytics::query(&log, &ctx, &pricing).unwrap(),
+                index::analytics(&mut ix, &ctx, &pricing),
+            ),
+            (
+                "by_account",
+                views::by_account(&log).unwrap(),
+                index::by_account(&mut ix),
+            ),
+        ];
+        for (name, mut streamed, mut indexed) in pairs {
+            // An open-ended timeseries window ends at the clock of each call.
+            if name == "timeseries" {
+                for v in [&mut streamed, &mut indexed] {
+                    v["since"] = Value::Null;
+                    v["until"] = Value::Null;
+                }
+            }
+            assert_eq!(
+                pyjson::dumps_u(&streamed),
+                pyjson::dumps_u(&indexed),
+                "{name} differs for {params}"
+            );
+        }
+    }
+    let daily = store.daily_totals_at(now).unwrap();
+    let streamed = UsageStore {
+        index: None,
+        ..t.store()
+    }
+    .daily_totals_at(now)
+    .unwrap();
+    assert_eq!(pyjson::dumps_u(&daily), pyjson::dumps_u(&streamed));
+}
+
+#[test]
+fn index_follows_appends_and_replacement() {
+    let t = Temp::new();
+    let store = t.store();
+    let all = json!({"realm":"all"});
+    store
+        .append(json!({"at":1,"account":"a","total_tokens":2}))
+        .unwrap();
+    assert_eq!(
+        store.query("/usage", &all, &Value::Null).unwrap()["total_tokens"],
+        2
+    );
+    store
+        .append(json!({"at":2,"account":"a","total_tokens":3}))
+        .unwrap();
+    assert_eq!(
+        store.query("/usage", &all, &Value::Null).unwrap()["total_tokens"],
+        5
+    );
+    assert_eq!(store.indexed_rows(), 2);
+    fs::write(
+        t.0.join("usage.jsonl"),
+        format!(
+            "{}\n",
+            pyjson::dumps_u(&json!({"at":1,"account":"b","total_tokens":9}))
+        ),
+    )
+    .unwrap();
+    let totals = store.query("/usage", &all, &Value::Null).unwrap();
+    assert_eq!(totals["total_tokens"], 9);
+    assert_eq!(store.indexed_rows(), 1);
+    let recent = store.query("/usage/recent", &all, &Value::Null).unwrap();
+    assert_eq!(recent["rows"][0]["account"], "b");
+}

@@ -1278,6 +1278,7 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "bytes",
+ "chrono",
  "clap",
  "flate2",
  "futures-util",
@@ -1286,6 +1287,8 @@ dependencies = [
  "hyper",
  "hyper-util",
  "parking_lot",
+ "rand",
+ "regex",
  "serde_json",
  "sha2",
  "tokio",

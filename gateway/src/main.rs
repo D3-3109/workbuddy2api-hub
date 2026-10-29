@@ -1,12 +1,18 @@
 mod account_net;
+mod activity;
 mod billing;
 mod cli;
+mod cn;
+mod daily;
 mod dispatch;
+mod jobs;
 mod log_channel;
 mod net;
 mod panel;
 mod router;
+mod scheduler;
 mod state;
+mod tasks;
 mod wire;
 
 use clap::Parser;
@@ -98,14 +104,19 @@ async fn main() -> anyhow::Result<()> {
         let _ = signal.send(true);
     });
     let maintenance = if !app.args.offline && app.args.test_upstream.is_none() {
-        Some(tokio::spawn(dispatch::maintenance(app.clone())))
+        app.usage.warm();
+        Some((
+            tokio::spawn(dispatch::maintenance(app.clone())),
+            tokio::spawn(scheduler::run(app.clone())),
+        ))
     } else {
         None
     };
     let result = net::serve(app.clone()).await;
     let _ = app.shutdown.send(true);
-    if let Some(task) = maintenance {
-        task.abort();
+    if let Some((maintenance, scheduler)) = maintenance {
+        maintenance.abort();
+        scheduler.abort();
     }
     result
 }

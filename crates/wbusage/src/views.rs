@@ -32,11 +32,7 @@ pub(crate) fn totals(
 ) -> io::Result<Value> {
     let realm = ctx.realm(false);
     let window = ctx.window();
-    let mut out = json!({"requests":0,"errors":0,"prompt_tokens":0,"completion_tokens":0,"reasoning_tokens":0,"cached_tokens":0,"total_tokens":0,
-        "credit":0.0,"cost_cny":0.0,"cost_missing":{},"started":started,"by_model":{},"by_model_realm":{},"by_model_acct":{},
-        "ttft_ms_sum":0,"ttft_samples":0,"gen_ms_sum":0,"gen_samples":0,"wall_ms_sum":0,"wall_samples":0,
-        "since":timeutil::local_stamp(started),"log_file":path,"realm":realm.as_deref().unwrap_or("all"),"usd_cny":pricing.fx(),"accounts_map":{},
-        "account":{"uid":"","domain":"","issuer":"","credential_file":"","expires_at":0,"accounts":0,"accounts_ready":0}});
+    let mut out = totals_template(path, &realm, pricing, started);
     scan::scan(path, |row| {
         if !ctx.matches(&row, &realm, window) {
             return;
@@ -74,6 +70,22 @@ pub(crate) fn totals(
         }
         feed_bucket(&mut out["by_model_acct"][&model][&r][&account], &row, &cost);
     })?;
+    totals_tail(&mut out, ctx);
+    Ok(out)
+}
+pub(crate) fn totals_template(
+    path: &Path,
+    realm: &Option<String>,
+    pricing: &Pricing,
+    started: f64,
+) -> Value {
+    json!({"requests":0,"errors":0,"prompt_tokens":0,"completion_tokens":0,"reasoning_tokens":0,"cached_tokens":0,"total_tokens":0,
+        "credit":0.0,"cost_cny":0.0,"cost_missing":{},"started":started,"by_model":{},"by_model_realm":{},"by_model_acct":{},
+        "ttft_ms_sum":0,"ttft_samples":0,"gen_ms_sum":0,"gen_samples":0,"wall_ms_sum":0,"wall_samples":0,
+        "since":timeutil::local_stamp(started),"log_file":path,"realm":realm.as_deref().unwrap_or("all"),"usd_cny":pricing.fx(),"accounts_map":{},
+        "account":{"uid":"","domain":"","issuer":"","credential_file":"","expires_at":0,"accounts":0,"accounts_ready":0}})
+}
+pub(crate) fn totals_tail(out: &mut Value, ctx: &Context) {
     for uid in &ctx.account_order {
         let acc = &ctx.accounts[uid];
         out["accounts_map"][uid] = json!({"nickname":string_or(&acc["nickname"],uid),"realm":string_or(&acc["realm"],"intl")});
@@ -83,13 +95,10 @@ pub(crate) fn totals(
     } else {
         out["account"]["accounts"] = json!(ctx.accounts.len());
     }
-    Ok(out)
 }
 
 pub(crate) fn recent(path: &Path, ctx: &Context, pricing: &Pricing) -> io::Result<Value> {
     let realm = ctx.realm(false);
-    let limit = ctx.integer("limit", 100).clamp(1, 1000) as u64;
-    let requested = ctx.integer("page", 1).max(1) as u64;
     let mut total = 0u64;
     let mut valid = 0u64;
     scan::scan_from(path, 0, |row| match row {
@@ -100,18 +109,38 @@ pub(crate) fn recent(path: &Path, ctx: &Context, pricing: &Pricing) -> io::Resul
         None if realm.is_none() => total += 1,
         _ => (),
     })?;
+    let (limit, pages, page, start, end) = recent_pages(ctx, total, valid);
+    let mut rows = Vec::new();
+    let mut i = 0u64;
+    scan::scan(path, |row| {
+        if !ctx.matches(&row, &realm, (None, None)) {
+            return;
+        }
+        if i >= start && i < end {
+            rows.push(decorate_recent(row, ctx, pricing));
+        }
+        i += 1;
+    })?;
+    rows.reverse();
+    Ok(
+        json!({"total":total,"page":page,"limit":limit,"total_pages":pages,"usd_cny":pricing.fx(),"rows":rows}),
+    )
+}
+/// `(limit, total_pages, page, first, end)` of a recent-rows page, where the
+/// page holds matching rows `first..end` in file order.
+pub(crate) fn recent_pages(ctx: &Context, total: u64, valid: u64) -> (u64, u64, u64, u64, u64) {
+    let limit = ctx.integer("limit", 100).clamp(1, 1000) as u64;
+    let requested = ctx.integer("page", 1).max(1) as u64;
     let pages = total.div_ceil(limit).max(1);
     let page = requested.min(pages);
     let skip = (page - 1).saturating_mul(limit);
     let end = valid.saturating_sub(skip);
     let start = end.saturating_sub(limit);
-    let mut rows = Vec::new();
-    let mut i = 0u64;
-    scan::scan(path, |mut row| {
-        if !ctx.matches(&row, &realm, (None, None)) {
-            return;
-        }
-        if i >= start && i < end {
+    (limit, pages, page, start, end)
+}
+pub(crate) fn decorate_recent(mut row: Value, ctx: &Context, pricing: &Pricing) -> Value {
+    {
+        {
             let cost = pricing.cost(&row);
             let known = truth(&cost["known"]);
             row["key_name"] = json!(ctx.key_name(&row));
@@ -144,14 +173,9 @@ pub(crate) fn recent(path: &Path, ctx: &Context, pricing: &Pricing) -> io::Resul
                     Value::Null
                 };
             }
-            rows.push(row);
         }
-        i += 1;
-    })?;
-    rows.reverse();
-    Ok(
-        json!({"total":total,"page":page,"limit":limit,"total_pages":pages,"usd_cny":pricing.fx(),"rows":rows}),
-    )
+    }
+    row
 }
 
 #[derive(Default)]
@@ -231,7 +255,7 @@ impl Perf {
     }
 }
 pub(crate) fn perf(path: &Path, ctx: &Context) -> io::Result<Value> {
-    let sample = ctx.integer("sample", 5000).clamp(10, 20000) as usize;
+    let sample = perf_sample(ctx);
     let mut tail = VecDeque::new();
     scan::scan_from(path, 0, |row| {
         if tail.len() == sample {
@@ -239,28 +263,35 @@ pub(crate) fn perf(path: &Path, ctx: &Context) -> io::Result<Value> {
         }
         // Perf needs no messages/fingerprints or other unbounded raw fields.
         // Retain only its small metric projection, even for a 20,000-row sample.
-        tail.push_back(row.map(|r| {
-            let mut projected = json!({});
-            for k in [
-                "at",
-                "model",
-                "realm",
-                "account",
-                "outcome",
-                "error",
-                "ttft_ms",
-                "gen_ms",
-                "elapsed_ms",
-                "tokens_per_sec",
-                "cache_hit_pct",
-            ] {
-                if let Some(v) = r.get(k) {
-                    projected[k] = v.clone();
-                }
-            }
-            projected
-        }));
+        tail.push_back(row.as_ref().map(perf_project));
     })?;
+    Ok(perf_finish(tail, sample, ctx))
+}
+pub(crate) fn perf_sample(ctx: &Context) -> usize {
+    ctx.integer("sample", 5000).clamp(10, 20000) as usize
+}
+pub(crate) fn perf_project(r: &Value) -> Value {
+    let mut projected = json!({});
+    for k in [
+        "at",
+        "model",
+        "realm",
+        "account",
+        "outcome",
+        "error",
+        "ttft_ms",
+        "gen_ms",
+        "elapsed_ms",
+        "tokens_per_sec",
+        "cache_hit_pct",
+    ] {
+        if let Some(v) = r.get(k) {
+            projected[k] = v.clone();
+        }
+    }
+    projected
+}
+pub(crate) fn perf_finish(tail: VecDeque<Option<Value>>, sample: usize, ctx: &Context) -> Value {
     let capped = tail.len() >= sample;
     let from = tail
         .iter()
@@ -304,11 +335,11 @@ pub(crate) fn perf(path: &Path, ctx: &Context) -> io::Result<Value> {
     for ((m, r, a), p) in accounts {
         out["by_model_acct"][m][r][a] = p.finish(false);
     }
-    Ok(out)
+    out
 }
 
-pub(crate) fn timeseries(path: &Path, ctx: &Context) -> io::Result<Value> {
-    let realm = ctx.realm(false);
+/// `(lo, hi, step, origin)` of a timeseries query.
+pub(crate) fn timeseries_grid(ctx: &Context) -> (f64, f64, i64, f64) {
     let (lo, hi) = ctx.window();
     let hi = hi.unwrap_or_else(timeutil::now);
     let lo = lo.unwrap_or(hi - 86400.0);
@@ -332,6 +363,17 @@ pub(crate) fn timeseries(path: &Path, ctx: &Context) -> io::Result<Value> {
         60 => (lo / 60.0).floor() * 60.0,
         _ => lo,
     };
+    (lo, hi, step, origin)
+}
+pub(crate) fn timeseries_bucket(origin: f64, k: i64, step: i64) -> Value {
+    json!({"at":origin+k as f64*step as f64,"requests":0,"errors":0,"prompt_tokens":0,"completion_tokens":0,"reasoning_tokens":0,"cached_tokens":0,"total_tokens":0,"credit":0.0})
+}
+pub(crate) fn credit_entry(row: &Value) -> Value {
+    json!({"at":row["at"],"iso":row["iso"],"model":row["model"],"account":row["account"],"credit":row["credit"],"total_tokens":row["total_tokens"]})
+}
+pub(crate) fn timeseries(path: &Path, ctx: &Context) -> io::Result<Value> {
+    let realm = ctx.realm(false);
+    let (lo, hi, step, origin) = timeseries_grid(ctx);
     let mut series: BTreeMap<i64, Value> = BTreeMap::new();
     let mut credits = Vec::new();
     scan::scan(path, |row| {
@@ -340,7 +382,9 @@ pub(crate) fn timeseries(path: &Path, ctx: &Context) -> io::Result<Value> {
         }
         let at = number(&row, "at");
         let k = ((at - origin) / step as f64).floor() as i64;
-        let b = series.entry(k).or_insert_with(|| json!({"at":origin+k as f64*step as f64,"requests":0,"errors":0,"prompt_tokens":0,"completion_tokens":0,"reasoning_tokens":0,"cached_tokens":0,"total_tokens":0,"credit":0.0}));
+        let b = series
+            .entry(k)
+            .or_insert_with(|| timeseries_bucket(origin, k, step));
         let result = outcome(&row);
         if result == "completed" {
             bump(b, "requests", 1.0);
@@ -352,7 +396,7 @@ pub(crate) fn timeseries(path: &Path, ctx: &Context) -> io::Result<Value> {
             bump(b, "credit", number(&row, "credit"));
         }
         if number(&row, "credit") > 0.0 {
-            credits.push(json!({"at":row["at"],"iso":row["iso"],"model":row["model"],"account":row["account"],"credit":row["credit"],"total_tokens":row["total_tokens"]}));
+            credits.push(credit_entry(&row));
             credits.sort_by(|a, b| number(b, "at").total_cmp(&number(a, "at")));
             credits.truncate(50);
         }
@@ -371,13 +415,19 @@ pub(crate) fn by_account(path: &Path) -> io::Result<Value> {
         let uid = string_or(&row["account"], "(unattributed)");
         let model = string_or(&row["model"], "?");
         if accounts[&uid].is_null() {
-            accounts[&uid] = json!({"account":uid,"requests":0,"prompt_tokens":0,"completion_tokens":0,"reasoning_tokens":0,"cached_tokens":0,"total_tokens":0,"models":{}});
+            accounts[&uid] = by_account_entry(&uid);
         }
         let b = &mut accounts[&uid];
         bump(b, "requests", 1.0);
         add_tokens(b, &row);
         bump(&mut b["models"], &model, 1.0);
     })?;
+    Ok(by_account_rows(accounts))
+}
+pub(crate) fn by_account_entry(uid: &str) -> Value {
+    json!({"account":uid,"requests":0,"prompt_tokens":0,"completion_tokens":0,"reasoning_tokens":0,"cached_tokens":0,"total_tokens":0,"models":{}})
+}
+pub(crate) fn by_account_rows(accounts: Value) -> Value {
     let mut rows: Vec<Value> = accounts.as_object().unwrap().values().cloned().collect();
     for row in &mut rows {
         let mut models: Vec<Value> = row["models"]
@@ -391,5 +441,5 @@ pub(crate) fn by_account(path: &Path) -> io::Result<Value> {
         row["models"] = json!(models);
     }
     rows.sort_by(|a, b| number(b, "total_tokens").total_cmp(&number(a, "total_tokens")));
-    Ok(json!({"accounts":rows}))
+    json!({"accounts":rows})
 }

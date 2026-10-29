@@ -1,8 +1,8 @@
 /* Rust build adjustments, injected by the gateway after the original dashboard.
    The dashboard was written for the Python gateway; this build does not run
-   the scheduler, daily tasks, desktop import, client one-click setup, quota
-   probing or self-update. Their buttons stay in place but are disabled and
-   say why, instead of failing with a red toast after the click. */
+   desktop import, client one-click setup, quota probing or self-update. Their
+   buttons stay in place but are disabled and say why, instead of failing with
+   a red toast after the click. The scheduler and daily tasks are implemented. */
 (function(){
   'use strict';
   /* The dashboard's translator walks text nodes and looks phrases up in its own
@@ -13,17 +13,11 @@
       'zh-Hant': '目前 Rust 版閘道未實作此功能',
       en: 'Not available in the Rust gateway'
     },
-    tasks: {
-      zh: '此 Rust 版网关不运行签到、成长任务与每日活跃等后台任务，以下数据不会更新。',
-      'zh-Hant': '此 Rust 版閘道不執行簽到、成長任務與每日活躍等背景任務，以下資料不會更新。',
-      en: 'The Rust gateway does not run check-ins, growth tasks or daily activity, so the figures below do not update.'
-    },
     agents: {
       zh: '此 Rust 版网关不检测本机客户端，也不改写它们的配置文件。请按下方「其他客户端」的地址手动填写。',
       'zh-Hant': '此 Rust 版閘道不偵測本機用戶端，也不改寫它們的設定檔。請依下方「其他用戶端」的位址手動填寫。',
       en: 'The Rust gateway does not detect local clients or edit their config files. Enter the addresses under “Other clients” below by hand.'
-    },
-    maintenance: {zh: '后台维护: ', 'zh-Hant': '背景維護: ', en: 'Maintenance: '}
+    }
   };
   function lang(){
     try { return (window.WB_I18N && window.WB_I18N.current()) || 'zh'; } catch(e){ return 'zh'; }
@@ -32,16 +26,14 @@
 
   /* Buttons that call a handler whose endpoint this build answers with 501. */
   var UNSUPPORTED_HANDLERS = [
-    'doDailyChat', 'doDailyChatPending', 'doDailyChatWeb', 'scanDesktop',
-    'triggerBuddyCheckin', 'runGrowthTasks', 'triggerStreakBonus', 'triggerCatTravel',
-    'syncProfile', 'applyAgent', 'restoreAgent', 'refreshPricingNow',
+    'scanDesktop', 'syncProfile', 'applyAgent', 'restoreAgent', 'refreshPricingNow',
     'discoverProxySlots', 'testProxySlot', 'runQuotaScan', 'checkUpdateNow',
-    'triggerSchedulerNow', 'toggleScheduler', 'rollbackToVersion', 'installUpdateNow'
+    'rollbackToVersion', 'installUpdateNow'
   ];
   var HANDLER_RE = new RegExp('^\\s*(?:' + UNSUPPORTED_HANDLERS.join('|') + ')\\(');
 
   /* Whole sections that only describe unported features. */
-  var UNSUPPORTED_SECTIONS = ['sectionIntlTasks', 'sectionGrowthTasks'];
+  var UNSUPPORTED_SECTIONS = [];
 
   function mark(btn){
     if(btn.__wbUnsupported) return;
@@ -83,14 +75,6 @@
     if(agents && agents.parentElement){
       notice(agents.parentElement, 'agents');
     }
-    var sched = document.getElementById('schedStatusText');
-    if(sched){
-      var label = sched.parentElement;
-      if(label && label.firstChild && label.firstChild.nodeType === 3){
-        label.setAttribute('data-wb-maint', '');
-        label.firstChild.data = t('maintenance');
-      }
-    }
   }
 
   /* Polling-driven errors that only describe the missing features. */
@@ -126,8 +110,6 @@
       el.textContent = t(el.getAttribute('data-wb-text'));
     });
     document.querySelectorAll('button.wb-unsupported').forEach(function(b){ b.setAttribute('title', t('note')); });
-    var label = document.querySelector('[data-wb-maint]');
-    if(label && label.firstChild && label.firstChild.nodeType === 3) label.firstChild.data = t('maintenance');
   }
   if(window.WB_I18N && typeof window.WB_I18N.set === 'function'){
     var setLang = window.WB_I18N.set;

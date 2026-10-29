@@ -699,6 +699,10 @@ async fn fetch_snapshot(app: &App, account: &Arc<Account>) -> Result<Snapshot> {
     }
     resource(&mut fetch).await
 }
+/// Refresh one account's balance snapshot (single-flight per account).
+pub async fn refresh_credits(app: &App, account: &Arc<Account>) -> Value {
+    refresh(app, account).await
+}
 async fn refresh(app: &App, account: &Arc<Account>) -> Value {
     let started = Instant::now();
     let lock = flight_lock(app, false, account.uid());

@@ -842,6 +842,28 @@ impl Account {
         s.doc = doc;
         Ok(())
     }
+    /// Whether scheduled and manual reward tasks may use this account. Separate
+    /// from `enabled`, which only controls API dispatch.
+    pub fn tasks_enabled(&self) -> bool {
+        self.state.read().doc["tasksEnabled"]
+            .as_bool()
+            .unwrap_or(true)
+    }
+    /// Persist a daily task marker (`lastCheckin`, `lastDailyChat`,
+    /// `lastActivityReport`) as a local `YYYY-MM-DD HH:MM:SS` stamp.
+    pub fn set_task_marker(&self, key: &str, stamp: &str) -> Result<()> {
+        if !matches!(key, "lastCheckin" | "lastDailyChat" | "lastActivityReport")
+            || timeutil::parse_local_stamp(stamp).is_none()
+        {
+            return Err(Error::Invalid("invalid task marker".into()));
+        }
+        let mut s = self.state.write();
+        let mut doc = s.doc.clone();
+        doc[key] = json!(stamp);
+        self.persist_if_bound(&doc, None)?;
+        s.doc = doc;
+        Ok(())
+    }
     pub fn set_credits(&self, credits: Value) -> Result<()> {
         if !credits.is_object() {
             return Err(Error::Invalid("credits must be an object".into()));

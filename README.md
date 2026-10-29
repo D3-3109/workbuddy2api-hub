@@ -3,7 +3,7 @@
 WorkBuddy / CodeBuddy 账号池网关的 Rust 实现。对外提供 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三种接口，内置原版管理看板。单个静态二进制，运行时不需要 Python。
 
 - 镜像：`ghcr.io/d3-3109/workbuddy2api-hub-rust`（linux/amd64、linux/arm64），由 GitHub Actions 测试后发布。
-- 当前版本：0.1.x alpha。核心转发可用，有完整离线契约测试；部分 Python 版后台任务尚未移植，见[功能范围](#功能范围)。
+- 当前版本：0.1.x alpha。核心转发与签到、每日活跃等定时任务可用，有完整离线契约测试；部分 Python 版功能尚未移植，见[功能范围](#功能范围)。
 
 ## 用 Docker Compose 启动
 
@@ -150,7 +150,7 @@ docker compose start
 
 已实现：三种协议的转换与流式输出；多账号选择、会话亲和、加权轮换；账号 / API Key / 全局并发限制；每日额度、熔断与模型冷却；账号导入导出与 OAuth 登录；令牌自动刷新；余额查询；看板、用量与定价历史；HTTP CONNECT 代理。
 
-尚未移植：签到/成长/旅行/每日网页聊天等后台任务、配额扫描与余量预测、本地 Web 搜索工具、在线调价、SQLite 日志、SOCKS 代理、自更新。看板上对应按钮会返回明确的「不支持」。完整清单与有意的行为差异见 [docs/MIGRATION.md](docs/MIGRATION.md)。
+已移植定时调度：Token 保活、国内版签到、猫猫旅行、连登管家、成长任务领奖、国际版每日活跃（网页会话），不伪造上报事件（见 [docs/UPSTREAM_SYNC.md](docs/UPSTREAM_SYNC.md)）。尚未移植：配额扫描与余量预测、本地 Web 搜索工具、在线调价、SQLite 日志、SOCKS 代理、自更新。看板上对应按钮会返回明确的「不支持」。完整清单与有意的行为差异见 [docs/MIGRATION.md](docs/MIGRATION.md)。
 
 ## 镜像构建（GitHub Actions）
 

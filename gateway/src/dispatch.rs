@@ -423,11 +423,11 @@ pub fn apply_guards(app: &App) -> Result<(), String> {
 }
 
 #[derive(Debug)]
-struct OpenFailure {
-    status: u16,
-    message: String,
+pub struct OpenFailure {
+    pub status: u16,
+    pub message: String,
     retry_after: Option<u64>,
-    restricted: bool,
+    pub(crate) restricted: bool,
 }
 impl OpenFailure {
     fn new(status: u16, message: impl Into<String>) -> Self {
@@ -454,7 +454,7 @@ impl OpenFailure {
 
 // Only protocol error fields are authoritative. Never search generated choices,
 // reasoning, tool arguments, or arbitrary JSON descendants for restriction text.
-fn structured_failure(value: &Value) -> Option<OpenFailure> {
+pub(crate) fn structured_failure(value: &Value) -> Option<OpenFailure> {
     let code = wbaccounts::json_code(value);
     let error = value
         .get("error")
@@ -488,7 +488,7 @@ fn structured_failure(value: &Value) -> Option<OpenFailure> {
     })
 }
 
-fn restrict_account(app: &App, account: &Arc<Account>) -> OpenFailure {
+pub(crate) fn restrict_account(app: &App, account: &Arc<Account>) -> OpenFailure {
     let at = now();
     // Update both in-memory barriers even if persistence fails. Never rotate on
     // a restriction whose durable write failed.
@@ -691,6 +691,86 @@ impl Drop for RequestRecord {
     }
 }
 
+/// Identity, proxy and timeout options shared by every chat-identity request.
+pub fn chat_options(
+    app: &App,
+    settings: &Value,
+    account: &Account,
+) -> Result<wbaccounts::ChatOptions, OpenFailure> {
+    let mut opts = wbaccounts::ChatOptions::default();
+    opts.desktop_chat_compat = app.env.desktop_chat_compat;
+    opts.request.proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
+    opts.request.cn_chat_base = app.env.cn_chat_upstream.clone();
+    opts.request.timeout_secs = settings["upstream"]["header_timeout_seconds"]
+        .as_f64()
+        .unwrap_or(120.0);
+    opts.now = now();
+    opts.device_token = settings["upstream"]["device_token"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
+    if opts.device_token.is_none() {
+        if let Some(path) = settings["upstream"]["device_token_file"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+        {
+            let bytes = std::fs::read(path).map_err(|_| {
+                OpenFailure::new(500, "configured device token file cannot be read")
+            })?;
+            if bytes.len() > 1024 {
+                return Err(OpenFailure::new(
+                    500,
+                    "device token file exceeds 1024 bytes",
+                ));
+            }
+            opts.device_token = Some(
+                String::from_utf8(bytes)
+                    .map_err(|_| OpenFailure::new(500, "device token must be UTF-8"))?
+                    .trim()
+                    .into(),
+            );
+        }
+    }
+    let versions = &settings["identity_versions"];
+    macro_rules! version {
+        ($field:ident) => {
+            if let Some(v) = versions[stringify!($field)]
+                .as_str()
+                .filter(|s| !s.is_empty())
+            {
+                opts.versions.$field = v.to_string();
+            }
+        };
+    }
+    version!(desktop_intl);
+    version!(desktop_cn);
+    version!(desktop_cli);
+    version!(vscode_product);
+    version!(vscode_ide);
+    version!(cli);
+    version!(sdk);
+    version!(node);
+    if versions["node"].as_str().unwrap_or("").trim().is_empty() {
+        if let Some(node) = &app.env.identity_node_version {
+            opts.versions.node = node.clone();
+        }
+    }
+    for (value, target) in [
+        (&app.env.identity_os, &mut opts.versions.os),
+        (&app.env.identity_arch, &mut opts.versions.arch),
+    ] {
+        if let Some(v) = value {
+            *target = v.clone();
+        }
+    }
+    opts.private_data = match settings["identity"]["private_data"].as_str() {
+        Some("true") => Some(true),
+        Some("false") => Some(false),
+        _ => None,
+    };
+    Ok(opts)
+}
+
 async fn open_upstream(
     app: &App,
     body: &Value,
@@ -762,80 +842,10 @@ async fn open_upstream(
         audit.account = Some(account.clone());
         audit.observed = ObservedStream::default();
         pick.exclude.insert(account.uid().to_string());
-        let mut opts = wbaccounts::ChatOptions::default();
-        opts.desktop_chat_compat = app.env.desktop_chat_compat;
-        opts.request.proxy = account.resolve_proxy_in(&app.settings.proxy_slots_shared());
-        opts.request.cn_chat_base = app.env.cn_chat_upstream.clone();
-        opts.request.timeout_secs = settings["upstream"]["header_timeout_seconds"]
-            .as_f64()
-            .unwrap_or(120.0);
+        let mut opts = chat_options(app, settings, &account)?;
         opts.session_key = pick.session_key.clone();
         opts.turn_request_id = Some(turn.clone());
         opts.model = Some(pick.model.clone());
-        opts.now = now();
-        opts.device_token = settings["upstream"]["device_token"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned);
-        if opts.device_token.is_none() {
-            if let Some(path) = settings["upstream"]["device_token_file"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-            {
-                let bytes = std::fs::read(path).map_err(|_| {
-                    OpenFailure::new(500, "configured device token file cannot be read")
-                })?;
-                if bytes.len() > 1024 {
-                    return Err(OpenFailure::new(
-                        500,
-                        "device token file exceeds 1024 bytes",
-                    ));
-                }
-                opts.device_token = Some(
-                    String::from_utf8(bytes)
-                        .map_err(|_| OpenFailure::new(500, "device token must be UTF-8"))?
-                        .trim()
-                        .into(),
-                );
-            }
-        }
-        let versions = &settings["identity_versions"];
-        macro_rules! version {
-            ($field:ident) => {
-                if let Some(v) = versions[stringify!($field)]
-                    .as_str()
-                    .filter(|s| !s.is_empty())
-                {
-                    opts.versions.$field = v.to_string();
-                }
-            };
-        }
-        version!(desktop_intl);
-        version!(desktop_cn);
-        version!(desktop_cli);
-        version!(vscode_product);
-        version!(vscode_ide);
-        version!(cli);
-        version!(sdk);
-        version!(node);
-        if versions["node"].as_str().unwrap_or("").trim().is_empty() {
-            if let Some(node) = &app.env.identity_node_version {
-                opts.versions.node = node.clone();
-            }
-        }
-        for (value, target) in [
-            (&app.env.identity_os, &mut opts.versions.os),
-            (&app.env.identity_arch, &mut opts.versions.arch),
-        ] {
-            if let Some(v) = value {
-                *target = v.clone();
-            }
-        }
-        opts.private_data = match settings["identity"]["private_data"].as_str() {
-            Some("true") => Some(true),
-            Some("false") => Some(false),
-            _ => None,
-        };
         let mut req = wbaccounts::build_chat_request(&account.cred(), body, &opts)
             .map_err(|e| OpenFailure::new(400, e.to_string()))?;
         app.rewrite_test_upstream(&mut req);

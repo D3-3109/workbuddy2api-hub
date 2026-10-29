@@ -40,6 +40,35 @@ pub(crate) struct Pricing {
     markup: Value,
     enabled: bool,
 }
+struct Located<'a> {
+    entry: &'a Value,
+    fx: f64,
+    policy: Option<(String, bool)>,
+}
+struct Measured<'a> {
+    cny: f64,
+    rates: &'a Value,
+    band: Option<usize>,
+    unit: f64,
+    currency: String,
+    markup: f64,
+}
+/// Cost outcome of one row, as the aggregate views consume it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum CostOf {
+    Disabled,
+    Unknown,
+    Known(f64),
+}
+impl CostOf {
+    /// `number(&cost, "cny")` of the full cost object.
+    pub fn cny(self) -> f64 {
+        match self {
+            CostOf::Known(n) => n,
+            _ => 0.0,
+        }
+    }
+}
 fn builtin() -> Value {
     static PARSED: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| {
         serde_json::from_str(BUILTIN).expect("bundled pricing snapshot")
@@ -148,45 +177,50 @@ impl Pricing {
         }
         (None, false)
     }
-    pub fn cost(&self, row: &Value) -> Value {
-        let mut result = json!({"cny":0.0,"known":false,"band":null,"source":"builtin","source_at":null,"backfilled":false});
-        for key in DETAILS {
-            result[key] = Value::Null;
-        }
-        if !self.enabled || !truth(row) {
-            result["disabled"] = json!(true);
-            return result;
-        }
-        let model = text(&row["model"]);
-        let (pid, backfilled) = match row["cost_policy"].as_str().filter(|s| !s.is_empty()) {
+    /// The policy (or snapshot entry) and exchange rate that price `model` at `at`.
+    fn locate(&self, model: &str, policy: Option<&str>, at: f64) -> Located<'_> {
+        let (pid, backfilled) = match policy {
             Some(s) => (Some(s.to_string()), false),
-            None => self.policy_ref_at(number(row, "at"), &model),
+            None => self.policy_ref_at(at, model),
         };
-        let policy = pid.as_ref().and_then(|p| self.policies.get(p));
-        let (entry, fx) = if let Some(p) = policy {
-            result["source"] = json!(pid.unwrap());
-            result["source_at"] = p["first_seen"].clone();
-            result["backfilled"] = json!(backfilled);
-            (
-                p,
-                if number(p, "usd_cny") == 0.0 {
+        match pid.as_ref().and_then(|p| self.policies.get(p)) {
+            Some(p) => Located {
+                entry: p,
+                fx: if number(p, "usd_cny") == 0.0 {
                     7.1
                 } else {
                     number(p, "usd_cny")
                 },
-            )
-        } else {
-            (&self.snapshot["models"][&model], self.fx())
-        };
+                policy: pid.map(|id| (id, backfilled)),
+            },
+            None => Located {
+                entry: &self.snapshot["models"][model],
+                fx: self.fx(),
+                policy: None,
+            },
+        }
+    }
+    /// Shared by `cost` and `cost_of`, so the cached and the displayed cost of a
+    /// row are the same arithmetic.
+    #[allow(clippy::too_many_arguments)]
+    fn measure<'a>(
+        &self,
+        model: &str,
+        entry: &'a Value,
+        fx: f64,
+        at: f64,
+        prompt: f64,
+        cached: f64,
+        completion: f64,
+    ) -> Option<Measured<'a>> {
         if !entry.is_object() {
-            return result;
+            return None;
         }
-        let (rates, band) = band_for(entry, number(row, "at"), number(row, "prompt_tokens"));
+        let (rates, band) = band_for(entry, at, prompt);
         if !rates.is_object() {
-            return result;
+            return None;
         }
-        let prompt = number(row, "prompt_tokens");
-        let cached = number(row, "cached_tokens").min(prompt);
+        let cached = cached.min(prompt);
         let miss = number(rates, "input_cache_miss");
         let hit = if rates["input_cache_hit"].is_null() {
             miss
@@ -205,14 +239,92 @@ impl Pricing {
         } else {
             1.0
         };
-        let markup = num(&self.markup[&model]);
+        let markup = num(&self.markup[model]);
         let markup = if markup > 0.0 { markup } else { 1.0 };
-        result["cny"] = json!(
-            ((prompt - cached) * miss + cached * hit + number(row, "completion_tokens") * output)
-                / unit
+        Some(Measured {
+            cny: ((prompt - cached) * miss + cached * hit + completion * output) / unit
                 * factor
-                * markup
+                * markup,
+            rates,
+            band,
+            unit,
+            currency,
+            markup,
+        })
+    }
+    /// The `cny`/`known`/`disabled` outcome of [`Pricing::cost`] from a row's
+    /// numeric fields, without building the detail object.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn cost_of(
+        &self,
+        model: &str,
+        policy: Option<&str>,
+        at: f64,
+        prompt: f64,
+        cached: f64,
+        completion: f64,
+        row_truthy: bool,
+    ) -> CostOf {
+        if !self.enabled || !row_truthy {
+            return CostOf::Disabled;
+        }
+        let located = self.locate(model, policy, at);
+        match self.measure(
+            model,
+            located.entry,
+            located.fx,
+            at,
+            prompt,
+            cached,
+            completion,
+        ) {
+            // A non-finite amount serializes as null, which reads back as 0.
+            Some(m) => CostOf::Known(if m.cny.is_finite() { m.cny } else { 0.0 }),
+            None => CostOf::Unknown,
+        }
+    }
+    pub fn cost(&self, row: &Value) -> Value {
+        let mut result = json!({"cny":0.0,"known":false,"band":null,"source":"builtin","source_at":null,"backfilled":false});
+        for key in DETAILS {
+            result[key] = Value::Null;
+        }
+        if !self.enabled || !truth(row) {
+            result["disabled"] = json!(true);
+            return result;
+        }
+        let model = text(&row["model"]);
+        let at = number(row, "at");
+        let located = self.locate(
+            &model,
+            row["cost_policy"].as_str().filter(|s| !s.is_empty()),
+            at,
         );
+        let (entry, fx) = (located.entry, located.fx);
+        if let Some((pid, backfilled)) = located.policy {
+            result["source"] = json!(pid);
+            result["source_at"] = entry["first_seen"].clone();
+            result["backfilled"] = json!(backfilled);
+        }
+        let Some(Measured {
+            cny,
+            rates,
+            band,
+            unit,
+            currency,
+            markup,
+        }) = self.measure(
+            &model,
+            entry,
+            fx,
+            at,
+            number(row, "prompt_tokens"),
+            number(row, "cached_tokens"),
+            number(row, "completion_tokens"),
+        )
+        else {
+            return result;
+        };
+        result["cny"] = json!(cny);
         result["known"] = json!(true);
         result["band"] = json!(band);
         result["rates"] = rates.clone();

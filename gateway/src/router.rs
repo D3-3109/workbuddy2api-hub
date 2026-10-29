@@ -80,7 +80,9 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
         }
     } else if parts.method == Method::GET {
         if app.panel_valid(&parts.headers) {
-            if let Some(reply) = crate::account_net::get(app.clone(), &path, &q).await {
+            if let Some(reply) = crate::jobs::get(app.clone(), &path, &q).await {
+                reply
+            } else if let Some(reply) = crate::account_net::get(app.clone(), &path, &q).await {
                 reply
             } else {
                 panel::get(app.clone(), &path, &parts.headers, &q, peer).await
@@ -126,7 +128,9 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
                 dispatch::chat(app.clone(), &path, payload, &parts.headers, &q, key, pinned).await
             }
             Ok(payload) => {
-                if let Some(reply) =
+                if let Some(reply) = crate::jobs::post(app.clone(), &path, &payload).await {
+                    reply
+                } else if let Some(reply) =
                     crate::billing::handle(app.clone(), &path, payload.clone()).await
                 {
                     reply

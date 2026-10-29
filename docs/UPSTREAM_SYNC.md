@@ -47,6 +47,12 @@ Legacy list/map forms and UTF-8 BOM are accepted for migration. Restoring a wind
 
 Memory logs remain available even if stderr is blocked or closed. `/logs` adds `stderr_dropped` and `stderr_closed`; overflow warnings enter only the in-memory ring, never recursively re-enter stderr. The bounded shutdown does not wait indefinitely for an OS pipe consumer. This does not add SQLite log storage.
 
+## Scheduler and reward tasks (follow-up)
+
+Ported from upstream (reviewed against v1.9.0 `a6a967e`): the hourly scheduler (`settings.schedule`, default checkin/travel 09:00 & 21:00, keepalive 22:00, growth claim 01:00), 48 h keepalive lead (`WB_KEEPALIVE_LEAD_HOURS`, unknown expiry counts as due), CN daily check-in with the `checked/already/pending/failed` classification, cat travel, streak bonus (makeup card, gift/compensation, tier redeem, lottery), growth-task accept and claim, intl daily activity (desktop leg, web conversation, ACP turn, `session/set_model`, retries, fallback models, 10-session prune, stop/delete release), HH:MM daily slots with a 12 h catch-up window and one start-up catch-up, activity history (`usage/activity_history.jsonl`), a one-account-per-30-min balance refresher, and the panel routes `/scheduler*`, `/tasks*`, `/accounts/checkin`, `/accounts/daily-chat(-web)`, `/activity/history`.
+
+Every task call skips restricted accounts and realm holds; a structured 11140 answer quarantines the account exactly as on the chat path. Deliberate differences: no `/v2/report` telemetry is fabricated (no CN activity-report ping, no black_cat night event, no forged growth progress); an empty `schedule.daily_chat` follows the check-in hours instead of upstream's two random slots; the scheduler `enabled` switch is in memory, as upstream. Tested only against a loopback fake upstream (`tests/tasks_smoke.py`), not with real accounts.
+
 ## Not ported in this sync
 
 The Rust alpha already declares daily activity/growth scheduling unsupported. These commits change that absent subsystem and do not justify presenting it as implemented:

@@ -18,6 +18,7 @@
 //! readers ignore an unterminated final line. No network or worker threads are used.
 
 mod analytics;
+mod index;
 mod pricing;
 mod scan;
 mod views;
@@ -45,6 +46,8 @@ pub struct UsageStore {
     enabled: AtomicBool,
     pricing_file: RwLock<Option<PathBuf>>,
     pricing_cache: Mutex<Option<PricingCache>>,
+    /// `None` when `WB_USAGE_INDEX=0`: every query then streams the whole log.
+    index: Option<Mutex<index::Index>>,
 }
 
 type FileStamp = Option<(u64, Option<SystemTime>)>;
@@ -84,6 +87,8 @@ impl UsageStore {
             enabled: AtomicBool::new(true),
             pricing_file: RwLock::new(std::env::var_os("WB_PRICING_FILE").map(PathBuf::from)),
             pricing_cache: Mutex::new(None),
+            index: (std::env::var("WB_USAGE_INDEX").as_deref() != Ok("0"))
+                .then(|| Mutex::new(index::Index::default())),
         }
     }
 
@@ -160,7 +165,11 @@ impl UsageStore {
     pub fn query(&self, path: &str, params: &Value, metadata: &Value) -> io::Result<Value> {
         let context = Context::new(params, metadata);
         let log = self.dir.join("usage.jsonl");
-        match path.trim_end_matches('/') {
+        let route = path.trim_end_matches('/');
+        if let Some(value) = self.indexed(route, &log, &context)? {
+            return Ok(value);
+        }
+        match route {
             "/usage" | "/v1/usage" => {
                 views::totals(&log, &context, &*self.pricing()?, self.started)
             }
@@ -175,6 +184,51 @@ impl UsageStore {
                 format!("unsupported usage route: {path}"),
             )),
         }
+    }
+
+    /// Indexed answer for the aggregate views; None means "stream instead".
+    fn indexed(&self, route: &str, log: &Path, ctx: &Context) -> io::Result<Option<Value>> {
+        let Some(index) = &self.index else {
+            return Ok(None);
+        };
+        if !matches!(
+            route,
+            "/usage"
+                | "/v1/usage"
+                | "/usage/recent"
+                | "/usage/perf"
+                | "/usage/timeseries"
+                | "/usage/analytics"
+                | "/usage/by-account"
+        ) {
+            return Ok(None);
+        }
+        let pricing = self.pricing()?;
+        let mut ix = index.lock();
+        ix.refresh(log)?;
+        Ok(match route {
+            "/usage" | "/v1/usage" => {
+                Some(index::totals(&mut ix, log, ctx, &pricing, self.started)?)
+            }
+            "/usage/recent" => index::recent(&mut ix, log, ctx, &pricing)?,
+            "/usage/perf" => index::perf(&mut ix, log, ctx)?,
+            "/usage/timeseries" => index::timeseries(&mut ix, log, ctx)?,
+            "/usage/analytics" => Some(index::analytics(&mut ix, ctx, &pricing)),
+            _ => Some(index::by_account(&mut ix)),
+        })
+    }
+
+    /// Build the index ahead of the first dashboard request. Errors surface
+    /// again on the next query, so they are ignored here.
+    pub fn warm(&self) {
+        if let Some(index) = &self.index {
+            let _ = index.lock().refresh(&self.dir.join("usage.jsonl"));
+        }
+    }
+
+    /// Rows held by the in-memory index (0 when disabled or not yet built).
+    pub fn indexed_rows(&self) -> usize {
+        self.index.as_ref().map_or(0, |ix| ix.lock().rows())
     }
 
     pub fn cost_for_row(&self, row: &Value) -> io::Result<Value> {
@@ -229,14 +283,22 @@ impl UsageStore {
         if state.day == day && state.cursor.unchanged(&path) {
             return Ok(state.totals.clone());
         }
+        let lo = timeutil::local_midnight(now, 0);
         if state.day != day || !state.cursor.matches(&path)? {
             *state = DailyState {
                 day,
                 totals: Arc::new(json!({"tokens":{},"credits":{},"models":{}})),
                 ..Default::default()
             };
+            // A cold start or a new day folds today's rows from the shared
+            // index instead of re-reading the whole log a second time.
+            if let Some(index) = &self.index {
+                let mut ix = index.lock();
+                ix.refresh(&path)?;
+                state.totals = Arc::new(index::daily(&ix, lo));
+                state.cursor = ix.cursor();
+            }
         }
-        let lo = timeutil::local_midnight(now, 0);
         let offset = state.cursor.offset;
         // Fold transactionally: a read failure must not leave counters advanced
         // while retaining the old cursor (which would double-count on retry).

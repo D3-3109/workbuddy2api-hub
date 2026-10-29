@@ -148,6 +148,7 @@ pub struct App {
     pub model_sets: Mutex<ModelSets>,
     /// Usage rows handed to the blocking pool and not yet written.
     pub pending_writes: std::sync::atomic::AtomicUsize,
+    pub scheduler: Arc<crate::scheduler::Scheduler>,
 }
 
 #[derive(Default)]
@@ -185,6 +186,7 @@ impl App {
             env: Env::from_process(),
             model_sets: Mutex::new(ModelSets::default()),
             pending_writes: Default::default(),
+            scheduler: Default::default(),
         }
     }
 

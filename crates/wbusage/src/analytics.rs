@@ -223,6 +223,20 @@ pub(crate) fn query(path: &Path, ctx: &Context, pricing: &Pricing) -> io::Result
         bump(&mut keys[&key]["realms"], &ctx.row_realm(&row), 1.0);
         keys[&key]["last_at"] = json!(number(&keys[&key], "last_at").max(number(&row, "at")));
     })?;
+    Ok(assemble(ctx, pricing, summary, accounts, models, keys))
+}
+
+/// Everything after the per-row fold: metadata accounts, ranking and key rows.
+pub(crate) fn assemble(
+    ctx: &Context,
+    pricing: &Pricing,
+    mut summary: Value,
+    mut accounts: Value,
+    models: Value,
+    keys: Value,
+) -> Value {
+    let realm = ctx.realm(true);
+    let window = ctx.window();
     for uid in &ctx.account_order {
         let acc = &ctx.accounts[uid];
         let r = string_or(&acc["realm"], "intl");
@@ -312,8 +326,6 @@ pub(crate) fn query(path: &Path, ctx: &Context, pricing: &Pricing) -> io::Result
         ));
     }
     key_rows.sort_by(|a, b| rank(a, b).then_with(|| text(&a["name"]).cmp(&text(&b["name"]))));
-    Ok(
-        json!({"window":{"since":window.0,"until":window.1},"realm":realm.as_deref().unwrap_or("all"),"usd_cny":pricing.fx(),
-        "summary":summary,"accounts":account_rows,"models":model_rows,"keys":key_rows}),
-    )
+    json!({"window":{"since":window.0,"until":window.1},"realm":realm.as_deref().unwrap_or("all"),"usd_cny":pricing.fx(),
+        "summary":summary,"accounts":account_rows,"models":model_rows,"keys":key_rows})
 }

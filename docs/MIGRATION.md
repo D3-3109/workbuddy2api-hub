@@ -36,7 +36,7 @@ OAuth login start/poll/cancel, single-account testing, manual catalog refresh an
 
 These are explicit limitations, not silently successful stubs. Unsupported management operations return HTTP 501; enabling unavailable features through the panel is rejected.
 
-- CN growth/check-in/travel tasks and international daily web-chat activity scheduler.
+- Fabricated growth telemetry. The scheduler runs CN check-in, cat travel, the streak bonus and growth-task accept/claim, and the international daily activity (desktop leg plus a real web-console ACP session). It never sends `/v2/report` events, so the CN "activity report" streak ping and the night-task (black_cat) event are not ported; tasks that need such events must be completed in the client, after which the scheduler claims them.
 - Automatic quota/window probing and remaining-budget estimator. Passive persistence/restoration of known 429 reset windows is implemented; it does not trigger probing.
 - Local web-search/web-fetch tool execution and citations.
 - Automatic account-product switching; automatic cross-realm/paid-model fallbacks; egress backoff orchestration and remaining-quota priority orchestration.

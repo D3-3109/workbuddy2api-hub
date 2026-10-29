@@ -72,7 +72,10 @@ pub struct LogEntry {
 }
 impl LogEntry {
     pub fn to_json(&self) -> Value {
-        json!({"id":self.id,"ts":wbcore::timeutil::local_stamp(self.time),"time":self.time,
+        // Same shape as the Python baseline: `ts` is the full local stamp,
+        // `time` the HH:MM:SS the log view prints, `at` the epoch seconds.
+        json!({"id":self.id,"ts":wbcore::timeutil::local_stamp(self.time),
+            "time":wbcore::timeutil::fmt_local(self.time, "%H:%M:%S"),"at":self.time,
             "level":self.level,"tag":self.tag,"msg":self.msg})
     }
 }

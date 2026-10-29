@@ -32,7 +32,7 @@ docker compose ps        # STATUS 显示 healthy 即可
 docker compose logs -f   # 查看日志
 ```
 
-- 看板：<http://127.0.0.1:8788/>，用 `WB_PANEL_PASSWORD` 登录，在「账号」页导入账号 JSON 或走 OAuth 登录。
+- 看板：<http://127.0.0.1:8788/>，用 `WB_PANEL_PASSWORD` 登录，在「账号」页导入账号 JSON 或走 OAuth 登录。看板界面的改版内容见 [docs/UI.md](docs/UI.md)。
 - API：`http://127.0.0.1:8788/v1`，鉴权头 `Authorization: Bearer <API_KEY>`。
 
 测试一次请求（需要先导入至少一个账号）：
@@ -191,7 +191,7 @@ python tests/upstream_sync_smoke.py --binary "$PWD/target/debug/wb2api"
 ## 仓库结构
 
 ```text
-assets/      编译期嵌入的看板 HTML 与定价快照
+assets/      编译期嵌入的看板 HTML（上游原样）、界面改版层 ui/、定价快照
 crates/      wbcore wbhttp wbsettings wbaccounts wbcatalog wbchat wbtranslate wbusage
 gateway/     wb2api 可执行文件：HTTP 服务、路由、调度、管理接口
 deploy/      Dockerfile、源码构建版 compose、systemd 模板、CI 说明

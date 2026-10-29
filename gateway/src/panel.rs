@@ -363,8 +363,52 @@ fn get_local(app: &App, path: &str, headers: &HeaderMap, q: &Query) -> Reply {
             "msg":"Rust alpha based on 477ba36 with selected v1.8.0 fixes from 4f7ae6f; not full upstream parity. Update the binary or container externally."}),
         ),
         "/console" | "/console/state" => ok(json!({"supported":true,"mode":"web","visible":false})),
+        // Read-only views of features this build does not run. The dashboard
+        // loads them on every visit; an empty, explicitly unsupported payload
+        // lets it render an empty state instead of a red error each time.
+        // Every action endpoint behind them still answers 501.
+        "/tasks" => ok(json!({"supported":false,"tasks":[],"accounts":[],"summary":{}})),
+        "/activity/history" => ok(json!({"supported":false,"rows":[],"total":0})),
+        "/accounts/credits/grants" => ok(json!({"supported":false,"rows":[],"summary":{}})),
+        "/updates/backups" => ok(
+            json!({"supported":false,"backups":[],"rollback_enabled":false,
+            "current_version":wbcore::RUST_VERSION}),
+        ),
+        "/agents" => ok(agents_view(app)),
+        // The only background work in this build is the maintenance loop:
+        // near-expiry token refresh every minute and a daily catalog refresh.
+        "/scheduler" => {
+            let enabled = !app.args.offline && app.args.test_upstream.is_none();
+            let mode = "凭证到期前自动刷新（每分钟检查）· 模型目录每日刷新";
+            ok(
+                json!({"supported":false,"enabled":enabled,"mode":mode,"mode_intl":mode,"mode_cn":mode,
+                "last_run_time":null,"next_run_time":null,"windows":[],"quota_scans":[]}),
+            )
+        }
         _ => unsupported(),
     }
+}
+
+/// Connection details for manually configuring clients. Local client
+/// detection and one-click configuration are not part of this build.
+fn agents_view(app: &App) -> Value {
+    let models: Vec<Value> = app.catalog.read().list(*app.realm.read())["data"]
+        .as_array()
+        .map(|rows| {
+            rows.iter()
+                .map(|m| json!({"id":m["id"],"context_window":m["context_window"]}))
+                .collect()
+        })
+        .unwrap_or_default();
+    let keys: Vec<Value> = app.settings.view()["api_keys"]
+        .as_array()
+        .map(|keys| {
+            keys.iter()
+                .map(|k| json!({"id":k["id"],"name":k["name"],"realm":k["realm"],"enabled":k["enabled"]}))
+                .collect()
+        })
+        .unwrap_or_default();
+    json!({"supported":false,"clients":[],"models":models,"keys":keys})
 }
 
 fn post_local(app: &App, path: &str, body: Value, _headers: &HeaderMap, _q: &Query) -> Reply {
@@ -1316,12 +1360,34 @@ mod tests {
             );
         }
         let headers = f.headers();
-        assert_eq!(
-            get(f.app.clone(), "/tasks", &headers, &Query::new(), peer())
+        // Read-only views of unported features render as empty, never as success.
+        for path in [
+            "/tasks",
+            "/activity/history",
+            "/accounts/credits/grants",
+            "/updates/backups",
+            "/agents",
+        ] {
+            let reply = get(f.app.clone(), path, &headers, &Query::new(), peer()).await;
+            assert_eq!(reply.status(), 200, "{path}");
+            assert_eq!(payload(reply).await["supported"], false, "{path}");
+        }
+        for path in ["/tasks/claim", "/agents/configure", "/updates/rollback"] {
+            assert_eq!(
+                post(
+                    f.app.clone(),
+                    path,
+                    json!({}),
+                    &headers,
+                    &Query::new(),
+                    peer()
+                )
                 .await
                 .status(),
-            501
-        );
+                501,
+                "{path}"
+            );
+        }
         assert_eq!(
             post(
                 f.app.clone(),

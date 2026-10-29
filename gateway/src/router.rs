@@ -161,10 +161,21 @@ fn dashboard(lang: &str, headers: &hyper::HeaderMap) -> Reply {
         .lock()
         .entry(lang.to_owned())
         .or_insert_with(|| {
-            let html = include_str!("../../assets/dashboard.html").replace(
-                "data-ui-language=\"__WB_UI_LANGUAGE__\"",
-                &format!("data-ui-language=\"{lang}\""),
+            // The upstream dashboard is vendored unchanged; the refresh styles and
+            // Rust-build adjustments are layered on after it.
+            let layer = concat!(
+                "<style id=\"wb-refresh\">\n",
+                include_str!("../../assets/ui/refresh.css"),
+                "</style>\n<script id=\"wb-rust-build\">\n",
+                include_str!("../../assets/ui/rust-build.js"),
+                "</script>\n</body>"
             );
+            let html = include_str!("../../assets/dashboard.html")
+                .replace(
+                    "data-ui-language=\"__WB_UI_LANGUAGE__\"",
+                    &format!("data-ui-language=\"{lang}\""),
+                )
+                .replacen("</body>", layer, 1);
             let tag = format!("\"{}\"", wbcore::ids::sha256_hex(&html));
             let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
             let gzip = gz

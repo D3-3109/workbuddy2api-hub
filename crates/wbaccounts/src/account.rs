@@ -364,18 +364,19 @@ impl Account {
         d["dailyCreditsToday"] = json!(s.guards.daily_credits_today);
         d["modelDailyTokenLimit"] = json!(s.guards.model_daily_token_limit);
         d["modelDailyTokens"] = json!(s.guards.model_daily_tokens);
-        d["restrictedFor"] =
-            json!((number(&s.doc["restrictedUntil"]).unwrap_or(0.0) - now).max(0.0));
-        d["cooldownFor"] = json!((deadline(&s, "") - now).max(0.0));
-        d["breakerFor"] = json!((s.runtime.breaker - now).max(0.0));
-        d["degradeFor"] = json!((s.runtime.degrade - now).max(0.0));
+        // Whole seconds, as the Python baseline rounds them; the panel prints them as-is.
+        let left = |until: f64| (until - now).max(0.0).round();
+        d["restrictedFor"] = json!(left(number(&s.doc["restrictedUntil"]).unwrap_or(0.0)));
+        d["cooldownFor"] = json!(left(deadline(&s, "")));
+        d["breakerFor"] = json!(left(s.runtime.breaker));
+        d["degradeFor"] = json!(left(s.runtime.degrade));
         d["lastErrorDetail"] = if s.runtime.detail.is_empty() {
             Value::Null
         } else {
             json!(s.runtime.detail)
         };
         d["failWindow"] = json!(*self.fail_window.read());
-        d["lastFailFor"] = json!(s.runtime.last_fail.map(|at| (now - at).max(0.0)));
+        d["lastFailFor"] = json!(s.runtime.last_fail.map(|at| (now - at).max(0.0).round()));
         let exp = s.doc["expiresAt"].as_i64().unwrap_or(0);
         d["expiresIn"] = if d["tokenExpired"] == true {
             json!("expired")

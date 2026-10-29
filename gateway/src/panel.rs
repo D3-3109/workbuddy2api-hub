@@ -537,6 +537,15 @@ fn settings_view(app: &App) -> Value {
     view["version"] = json!(wbcore::RUST_VERSION);
     view["upstream_version"] = json!(wbcore::VERSION);
     view["synced_upstream_commit"] = json!(wbcore::SYNCED_UPSTREAM_COMMIT);
+    // The panel shows these as each field's default; without them every row
+    // reads "-" even though requests use the built-in values.
+    let defaults = wbaccounts::IdentityVersions::default();
+    view["identity_version_defaults"] = json!({
+        "desktop_intl": defaults.desktop_intl, "desktop_cn": defaults.desktop_cn,
+        "desktop_cli": defaults.desktop_cli, "vscode_product": defaults.vscode_product,
+        "vscode_ide": defaults.vscode_ide, "cli": defaults.cli,
+        "sdk": defaults.sdk, "node": defaults.node,
+    });
     view["management_capabilities"] = json!({"self_update":false,"scheduler":false,
         "desktop_import":false,"proxy_probe":false,"log_database":false,"pricing_refresh":false,
         "quota_scan":false,"log_mode":"memory"});
@@ -1504,6 +1513,29 @@ mod tests {
             .await
             .status(),
             400
+        );
+    }
+
+    #[tokio::test]
+    async fn settings_view_reports_upstream_identity_version_defaults() {
+        let f = Fixture::new();
+        let view = payload(
+            get(
+                f.app.clone(),
+                "/settings",
+                &f.headers(),
+                &Query::new(),
+                peer(),
+            )
+            .await,
+        )
+        .await;
+        // wb_identity._VERSION_DEFAULTS, unchanged from 477ba36 through v1.9.0.
+        assert_eq!(
+            view["identity_version_defaults"],
+            json!({"desktop_intl":"5.8.4","desktop_cn":"5.8.3","desktop_cli":"2.161.0",
+                "vscode_product":"4.12.39997873","vscode_ide":"1.119.0","cli":"2.168.2",
+                "sdk":"6.25.0","node":"v22.21.1"})
         );
     }
 

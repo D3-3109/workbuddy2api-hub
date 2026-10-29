@@ -1060,6 +1060,27 @@ fn response_classification_and_reset_times() {
     assert_eq!(a.throttle_wait("paid", now), 60.);
 }
 #[test]
+fn default_identity_matches_upstream_wb_identity() {
+    // wb_identity.DESKTOP_UA_INTL / DESKTOP_UA_CN, unchanged 477ba36 .. v1.9.0.
+    let mut c = account("u-ua").cred();
+    let body = json!({"model":"m","messages":[]});
+    let opts = ChatOptions::default();
+    let intl = build_chat_request(&c, &body, &opts).unwrap();
+    assert_eq!(intl.header("X-IDE-Version"), Some("5.8.4"));
+    assert_eq!(
+        intl.header("User-Agent"),
+        Some("WorkBuddy/5.8.4 workbuddy-ai/5.8.4 CLI/2.161.0")
+    );
+    c.realm = Realm::Cn;
+    let cn = build_chat_request(&c, &body, &opts).unwrap();
+    assert_eq!(cn.header("X-IDE-Version"), Some("5.8.3"));
+    assert_eq!(
+        cn.header("User-Agent"),
+        Some("WorkBuddy/5.8.3 WorkBuddy/5.8.3 CLI/2.161.0")
+    );
+}
+
+#[test]
 fn desktop_chat_headers_order_ids_and_body() {
     let a = account("u-123");
     let c = a.cred();

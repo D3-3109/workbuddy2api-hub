@@ -90,7 +90,7 @@ Linux-specific crates were fetched once before the offline build. A short `CARGO
 - No real account, real upstream inference or actual quota consumption was used.
 - The Linux binary was cross-compiled and inspected, **not executed** on Debian/Alpine. Unix-only permission/CA path tests did not run on the Windows host.
 - Dockerfile/Compose/systemd received static checks only; no Docker/WSL runtime was available.
-- No browser GUI regression or visual acceptance pass was performed on the embedded original dashboard.
+- The rewritten dashboard (`assets/web`) was walked through page by page in Chromium (dark/light, three palettes, 1360 px and 390 px, zh/en) against a gateway with demo data, and measured with a 300-account / 60,000-row dataset. There is no automated browser test suite for it yet.
 - No production load test or Python-versus-Rust benchmark was performed. No performance multiplier, latency reduction or memory saving is claimed.
 - The original background scheduler/reward tasks, automatic quota probes and other unsupported features are not counted as completed. See `MIGRATION.md`.
 

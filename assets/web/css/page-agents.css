@@ -1,0 +1,56 @@
+/* Agents page: connection form, config snippets, model list. Tokens only. */
+.p-agents .card-head { flex-wrap: wrap; }
+.p-agents .ag-grid { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+
+/* key picker */
+.p-agents .ag-secret { display: flex; gap: 6px; }
+.p-agents .ag-secret .input { flex: 1 1 auto; min-width: 0; letter-spacing: .02em; }
+.p-agents .ag-keyhint { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; }
+.p-agents .field .err { margin-top: -2px; }
+
+/* model combobox */
+.p-agents .ag-combo { position: relative; }
+.p-agents .ag-combo .input { padding-right: 30px; }
+.p-agents .ag-pop {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow: auto; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r); box-shadow: var(--shadow-3);
+  animation: menu-in 110ms var(--ease) both; transform-origin: top left;
+}
+.p-agents .ag-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 0 10px;
+  border-radius: var(--r-sm); cursor: pointer; font-size: 13px;
+}
+.p-agents .ag-opt.active { background: var(--surface-2); }
+.p-agents .ag-opt[aria-selected="true"] .ag-opt-id { color: var(--accent); font-weight: 600; }
+.p-agents .ag-opt-id { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-agents .ag-opt-ctx { flex: none; color: var(--fg-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.p-agents .ag-pop-note { padding: 8px 10px; color: var(--fg-3); font-size: 12.5px; }
+
+/* snippets */
+.p-agents .ag-tabs { overflow-y: hidden; gap: var(--sp-4); }
+.p-agents .ag-hint { color: var(--fg-2); font-size: 13px; margin: 12px 0; max-width: 78ch; }
+.p-agents .ag-tab-info .alert { margin-bottom: 12px; align-items: center; }
+.p-agents .ag-tab-info .alert .grow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.p-agents .ag-blocks { display: flex; flex-direction: column; gap: 16px; }
+.p-agents .ag-block-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; min-height: 24px; }
+.p-agents .ag-block-title { font-size: 12.5px; font-weight: 600; color: var(--fg-2); }
+.p-agents .ag-block .codeblock pre { max-height: 340px; }
+.p-agents .ag-kv { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); }
+.p-agents .ag-kv-row { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--line); }
+.p-agents .ag-kv-row:last-child { border-bottom: 0; }
+.p-agents .ag-kv-k { color: var(--fg-2); font-size: 12.5px; }
+.p-agents .ag-kv-v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+
+/* model table */
+.p-agents .ag-mid { font-size: 12.5px; word-break: break-all; }
+.p-agents .ag-models .table-wrap { max-height: 460px; }
+
+@media (max-width: 1100px) {
+  .p-agents .ag-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .p-agents .ag-kv-row { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 8px 8px 12px; }
+  .p-agents .ag-kv-k { grid-column: 1 / -1; }
+  .p-agents .ag-models .card-head .actions { width: 100%; }
+  .p-agents .ag-models .card-head .actions .input { width: 100% !important; }
+}

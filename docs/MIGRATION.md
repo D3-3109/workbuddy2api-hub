@@ -46,7 +46,7 @@ These are explicit limitations, not silently successful stubs. Unsupported manag
 - SOCKS/HTTPS proxy schemes, environment proxy discovery and `no_proxy` rules. Only explicit direct/HTTP proxy egress is implemented initially.
 - Remote `previous_response_id` storage, fragmented tool names after their first nonempty fragment, complete multi-choice nonstream semantics.
 
-The original dashboard is embedded for continuity, but some buttons refer to the unsupported operations above. A full browser visual/interaction regression is separate from API tests and is not implied by serving that HTML.
+The management dashboard was rewritten (`assets/web`, see `docs/UI.md`). Controls for the unsupported operations above are rendered disabled with an explanation instead of failing with 501 when clicked.
 
 ## Data migration and rollback
 

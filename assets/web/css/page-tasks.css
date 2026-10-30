@@ -1,0 +1,105 @@
+/* Tasks & benefits page. Everything is scoped under .p-tasks. */
+
+.p-tasks .card-head { flex-wrap: wrap; row-gap: 8px; }
+
+/* ---- toolbar: picker + eligibility + scheduler summary ---- */
+.p-tasks .tk-bar { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 18px; }
+.p-tasks .tk-bar-main { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 18px; flex: 1 1 auto; min-width: 0; }
+.p-tasks .tk-picker { width: 300px; max-width: 100%; }
+.p-tasks .tk-chips { display: flex; align-items: center; min-height: 34px; min-width: 0; }
+.p-tasks .tk-bar-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; max-width: 100%; }
+.p-tasks .tk-sched {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px;
+  border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
+  color: var(--fg-2); font-size: 12.5px; text-decoration: none;
+}
+.p-tasks .tk-sched:hover { color: var(--fg); border-color: var(--line-2); text-decoration: none; }
+.p-tasks .tk-sched .ic { color: var(--fg-3); }
+.p-tasks .tk-busy { display: flex; align-items: center; gap: 10px; max-width: 460px; color: var(--fg-2); font-size: 12.5px; line-height: 1.45; }
+
+/* ---- action tiles ---- */
+.p-tasks .tk-scope { color: var(--fg-3); font-size: 12.5px; font-weight: 450; }
+.p-tasks .tk-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.p-tasks .tk-act { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); min-width: 0; }
+.p-tasks .tk-act h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.p-tasks .tk-act h3 .ic { color: var(--accent); }
+.p-tasks .tk-act p { flex: 1 1 auto; color: var(--fg-2); font-size: 12.5px; line-height: 1.55; }
+.p-tasks .tk-act-ctl { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 4px; }
+.p-tasks .tk-act-ctl .btn { max-width: 100%; height: auto; min-height: 34px; padding: 7px 12px; white-space: normal; line-height: 1.25; text-align: center; }
+.p-tasks .tk-act-ctl .check { font-size: 12.5px; color: var(--fg-2); align-items: flex-start; }
+.p-tasks .tk-act-ctl .check input { margin-top: 1px; }
+.p-tasks .tk-why { margin-top: 12px; color: var(--warn); font-size: 12.5px; }
+.p-tasks p.tk-desc { max-width: 72ch; font-size: 13px; line-height: 1.6; }
+
+/* ---- last result ---- */
+.p-tasks .tk-lines { display: flex; flex-direction: column; max-height: 300px; margin-top: 12px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.p-tasks .tk-line { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.p-tasks .tk-line:last-child { border-bottom: 0; }
+.p-tasks .tk-line.head { position: sticky; top: 0; z-index: 1; background: var(--surface-2); color: var(--fg-2); font-size: 12.5px; font-weight: 600; }
+.p-tasks .tk-line.indent { padding-left: 26px; }
+.p-tasks .tk-line .ic { margin-top: 2px; }
+.p-tasks .tk-line.ok .ic { color: var(--good); }
+.p-tasks .tk-line.warn .ic { color: var(--warn); }
+.p-tasks .tk-line.bad .ic { color: var(--bad); }
+.p-tasks .tk-line.info .ic { color: var(--fg-3); }
+.p-tasks .tk-line-body { flex: 1 1 auto; min-width: 0; }
+.p-tasks .tk-line-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.p-tasks .tk-line-top b { max-width: 60%; }
+.p-tasks .tk-line-text { color: var(--fg-2); white-space: pre-wrap; word-break: break-word; }
+.p-tasks .tk-line-top + .tk-line-text { margin-top: 2px; font-size: 12.5px; }
+.p-tasks .tk-line-body > .tk-line-text:only-child { color: var(--fg); }
+
+/* ---- tables ---- */
+.p-tasks .tk-name { display: block; width: 100%; max-width: 280px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+.p-tasks .tk-name .cell-main { display: block; }
+.p-tasks .tk-name .cell-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 2px; }
+.p-tasks .tk-name:hover .cell-main { color: var(--accent); }
+.p-tasks .tk-accounts td { vertical-align: middle; }
+.p-tasks .tk-accounts .tk-c-act { width: 44px; text-align: right; }
+
+.p-tasks .tk-tasks td { vertical-align: top; }
+.p-tasks .tk-tasks .tk-desc { max-width: 420px; margin-top: 2px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: break-word; }
+.p-tasks .tk-prog { display: flex; flex-direction: column; gap: 5px; min-width: 76px; font-size: 12.5px; }
+.p-tasks .tk-prog .bar { height: 5px; }
+.p-tasks .tk-prog .num { text-align: left; }
+.p-tasks .tk-rw { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.p-tasks .tk-rw.credit { color: var(--good); }
+.p-tasks .tk-rw.energy { color: var(--info); }
+.p-tasks .tk-status { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.p-tasks .tk-reward-sm { display: none; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
+
+/* ---- history timeline ---- */
+.p-tasks .tk-filter .select { width: auto; min-width: 112px; }
+.p-tasks .tk-tl { position: relative; margin: 0; padding: 4px 18px 12px; list-style: none; }
+.p-tasks .tk-tl::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.p-tasks .tk-day { position: relative; padding: 12px 0 4px 24px; color: var(--fg-3); font-size: 11.5px; font-weight: 650; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.p-tasks .tk-ev { position: relative; padding: 7px 0 7px 24px; }
+.p-tasks .tk-dot { position: absolute; left: 0; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px var(--surface); }
+.p-tasks .tk-ev.bad .tk-dot { background: var(--bad); }
+.p-tasks .tk-ev-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.p-tasks .tk-time { color: var(--fg-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.p-tasks .tk-who { max-width: 220px; font-size: 13.5px; }
+.p-tasks .tk-ev-msg { margin-top: 3px; color: var(--fg-2); font-size: 12.5px; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: break-word; }
+.p-tasks .tk-ev.bad .tk-ev-msg { color: var(--bad); }
+
+@media (max-width: 480px) {
+  /* the stat cards are short: keep two per row instead of one very tall column */
+  .p-tasks .grid.cols-3, .p-tasks .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .p-tasks .kpi { padding: 12px 14px; }
+  .p-tasks .kpi .kpi-value { font-size: 24px; }
+}
+
+@media (max-width: 760px) {
+  .p-tasks .tk-bar { align-items: stretch; padding: 12px 14px; }
+  .p-tasks .tk-bar-main { flex-direction: column; align-items: stretch; }
+  .p-tasks .tk-picker { width: 100%; }
+  .p-tasks .tk-bar-side { align-items: stretch; width: 100%; }
+  .p-tasks .tk-sched { justify-content: flex-start; }
+  .p-tasks .tk-actions { grid-template-columns: minmax(0, 1fr); }
+  .p-tasks .tk-reward-sm { display: flex; }
+  .p-tasks .tk-name { max-width: none; }
+  .p-tasks .tk-tl { padding-inline: 14px; }
+  .p-tasks .tk-tl::before { left: 18px; }
+  .p-tasks .tk-filter { width: 100%; }
+  .p-tasks .tk-filter .select { flex: 1 1 auto; }
+}

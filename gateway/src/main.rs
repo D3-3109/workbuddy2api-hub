@@ -13,6 +13,7 @@ mod router;
 mod scheduler;
 mod state;
 mod tasks;
+mod ui;
 mod wire;
 
 use clap::Parser;

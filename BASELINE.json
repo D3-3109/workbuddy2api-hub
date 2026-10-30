@@ -20,7 +20,6 @@
   "python_branch": "rust-port",
   "layout": "standalone: Rust workspace at repository root, Python reference kept on rust-port/main",
   "vendored_assets": {
-    "assets/dashboard.html": "dashboard.html @ 477ba36 + 4f7ae6f fixes",
     "assets/pricing.json": "pricing/pricing.json",
     "tests/fixtures/pricing_tooltip": "tests/fixtures/pricing_tooltip"
   }

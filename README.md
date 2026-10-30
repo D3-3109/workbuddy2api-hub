@@ -1,6 +1,6 @@
 # WorkBuddy2API Rust
 
-WorkBuddy / CodeBuddy 账号池网关的 Rust 实现。对外提供 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三种接口，内置原版管理看板。单个静态二进制，运行时不需要 Python。
+WorkBuddy / CodeBuddy 账号池网关的 Rust 实现。对外提供 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三种接口，内置管理看板。单个静态二进制，运行时不需要 Python。
 
 - 镜像：`ghcr.io/d3-3109/workbuddy2api-hub-rust`（linux/amd64、linux/arm64），由 GitHub Actions 测试后发布。
 - 当前版本：0.1.x alpha。核心转发与签到、每日活跃等定时任务可用，有完整离线契约测试；部分 Python 版功能尚未移植，见[功能范围](#功能范围)。
@@ -32,7 +32,7 @@ docker compose ps        # STATUS 显示 healthy 即可
 docker compose logs -f   # 查看日志
 ```
 
-- 看板：<http://127.0.0.1:8788/>，用 `WB_PANEL_PASSWORD` 登录，在「账号」页导入账号 JSON 或走 OAuth 登录。看板界面的改版内容见 [docs/UI.md](docs/UI.md)。
+- 看板：<http://127.0.0.1:8788/>，用 `WB_PANEL_PASSWORD` 登录，在「账号」页导入账号 JSON 或走 OAuth 登录。看板的结构、性能设计和开发方式见 [docs/UI.md](docs/UI.md)。
 - API：`http://127.0.0.1:8788/v1`，鉴权头 `Authorization: Bearer <API_KEY>`。
 
 测试一次请求（需要先导入至少一个账号）：
@@ -191,7 +191,7 @@ python tests/upstream_sync_smoke.py --binary "$PWD/target/debug/wb2api"
 ## 仓库结构
 
 ```text
-assets/      编译期嵌入的看板 HTML（上游原样）、界面改版层 ui/、定价快照
+assets/      编译期嵌入的管理看板 web/（原生 ES 模块，无构建步骤）、定价快照
 crates/      wbcore wbhttp wbsettings wbaccounts wbcatalog wbchat wbtranslate wbusage
 gateway/     wb2api 可执行文件：HTTP 服务、路由、调度、管理接口
 deploy/      Dockerfile、源码构建版 compose、systemd 模板、CI 说明
@@ -200,8 +200,8 @@ tests/       整机冒烟测试与 Python 黄金样本
 bench/       离线压测工具（独立 crate）
 ```
 
-分支：`rust` 是本 Rust 网关，与 Python 历史完全分离；`rust-port` 是移植时的 Python 参考实现快照；`main` 跟随原作者上游。
+分支：`rust` 是本仓库唯一的分支，也是默认分支，Rust 网关的全部代码都在这里；Python 参考实现快照（`rust-port`）和跟随原作者上游的 `main` 已从本仓库移除。
 
 ## 许可与声明
 
-MIT，见 [LICENSE](LICENSE) 与 [NOTICE.md](NOTICE.md)。行为、看板与定价数据来自 [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) `477ba36`。本项目与 WorkBuddy、CodeBuddy、OpenAI、Anthropic 无关联；请只使用你有权访问的账号，并遵守相应服务条款与额度限制。
+MIT，见 [LICENSE](LICENSE) 与 [NOTICE.md](NOTICE.md)。行为与定价数据来自 [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) `477ba36`。本项目与 WorkBuddy、CodeBuddy、OpenAI、Anthropic 无关联；请只使用你有权访问的账号，并遵守相应服务条款与额度限制。

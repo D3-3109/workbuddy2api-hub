@@ -63,7 +63,9 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
             .as_str()
             .unwrap_or("zh")
             .to_owned();
-        dashboard(&lang, &parts.headers)
+        crate::ui::index(&lang, &parts.headers)
+    } else if parts.method == Method::GET && path.starts_with("/ui/") {
+        crate::ui::file(&path, &parts.headers)
     } else if parts.method == Method::GET && is_api {
         match app.authenticate(&parts.headers, &q) {
             Err(()) => wire::error(401, "missing or invalid API key", anthropic),
@@ -147,78 +149,6 @@ pub async fn route(app: Arc<App>, request: Request<Incoming>, peer: SocketAddr) 
         wire::error(405, "method not allowed", anthropic)
     };
     wire::cors(&path, &mut reply);
-    reply
-}
-
-struct Page {
-    html: bytes::Bytes,
-    gzip: bytes::Bytes,
-    tag: String,
-}
-
-/// The dashboard is ~1 MB; render, hash and compress it once per UI language.
-fn dashboard(lang: &str, headers: &hyper::HeaderMap) -> Reply {
-    use std::{collections::HashMap, io::Write, sync::LazyLock};
-    static PAGES: LazyLock<parking_lot::Mutex<HashMap<String, Arc<Page>>>> =
-        LazyLock::new(Default::default);
-    let page = PAGES
-        .lock()
-        .entry(lang.to_owned())
-        .or_insert_with(|| {
-            // The upstream dashboard is vendored unchanged; the refresh styles and
-            // Rust-build adjustments are layered on after it.
-            let layer = concat!(
-                "<style id=\"wb-refresh\">\n",
-                include_str!("../../assets/ui/refresh.css"),
-                include_str!("../../assets/ui/accounts.css"),
-                "</style>\n<script id=\"wb-rust-build\">\n",
-                include_str!("../../assets/ui/rust-build.js"),
-                include_str!("../../assets/ui/accounts.js"),
-                "</script>\n</body>"
-            );
-            let html = include_str!("../../assets/dashboard.html")
-                .replace(
-                    "data-ui-language=\"__WB_UI_LANGUAGE__\"",
-                    &format!("data-ui-language=\"{lang}\""),
-                )
-                .replacen("</body>", layer, 1);
-            let tag = format!("\"{}\"", wbcore::ids::sha256_hex(&html));
-            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-            let gzip = gz
-                .write_all(html.as_bytes())
-                .and_then(|()| gz.finish())
-                .unwrap_or_default();
-            Arc::new(Page {
-                html: html.into_bytes().into(),
-                gzip: gzip.into(),
-                tag,
-            })
-        })
-        .clone();
-    let accepts_gzip = wire::header_text(headers, "accept-encoding").is_some_and(|v| {
-        v.split(',').any(|e| {
-            e.split(';')
-                .next()
-                .is_some_and(|e| e.trim().eq_ignore_ascii_case("gzip"))
-        })
-    });
-    let body = if accepts_gzip && !page.gzip.is_empty() {
-        page.gzip.clone()
-    } else {
-        page.html.clone()
-    };
-    let mut reply = wire::response_bytes(200, "text/html; charset=utf-8", body);
-    if accepts_gzip && !page.gzip.is_empty() {
-        reply.headers_mut().insert(
-            hyper::header::CONTENT_ENCODING,
-            hyper::header::HeaderValue::from_static("gzip"),
-        );
-    }
-    let mut reply = wire::etag(reply, headers, &page.tag);
-    reply.headers_mut().insert(
-        hyper::header::VARY,
-        hyper::header::HeaderValue::from_static("Accept-Encoding"),
-    );
     reply
 }
 

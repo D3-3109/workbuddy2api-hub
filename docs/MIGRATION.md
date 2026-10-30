@@ -31,6 +31,7 @@ OAuth login start/poll/cancel, single-account testing, manual catalog refresh an
 8. Non-loopback listeners require API authentication and a nondefault panel password. Disabling auth or reverting to `admin` is rejected while publicly listening. Loopback APIs also fail closed when keys are absent/disabled; anonymous access requires explicit `auth_disabled:true` with no launcher key. Deleting the last key does not silently expose a reverse-proxied loopback deployment.
 9. `bucket_seconds` is accepted as an alias for `bucket`. Historical malformed UTF-8 lines are skipped rather than terminating a complete usage scan.
 10. Linux runtime trust bundles are loaded explicitly for cross-built OpenSSL binaries; TLS certificate validation remains mandatory.
+11. The settings `accounts_collapsed`, `accounts_separate_tab`, `key_before_hidden` and `section_max_height` only drove layout in the Python dashboard. They are no longer part of the schema: existing files lose them on load, `/settings` does not return them and `/settings/save` ignores them.
 
 ## Not migrated / unsupported
 

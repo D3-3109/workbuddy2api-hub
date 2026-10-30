@@ -30,9 +30,6 @@ const BOOLS: &[(&str, bool)] = &[
     ("pricing_enabled", true),
     ("pricing_variant_inherit", true),
     ("log_db_enabled", false),
-    ("accounts_collapsed", false),
-    ("accounts_separate_tab", false),
-    ("key_before_hidden", false),
     ("update_check_enabled", false),
 ];
 const INTS: &[(&str, u64, u64, u64)] = &[
@@ -41,7 +38,6 @@ const INTS: &[(&str, u64, u64, u64)] = &[
     ("daily_chat_web_retry_backoff", 5, 0, 60),
     ("daily_chat_web_concurrency", 1, 1, 10),
     ("account_max_concurrent", 0, 0, 10),
-    ("section_max_height", 640, 0, 4000),
     ("keep_backups", 1, 0, 3),
 ];
 
@@ -61,6 +57,14 @@ pub fn deep_merge(base: &Value, patch: &Value) -> Value {
         _ => patch.clone(),
     }
 }
+
+/// Settings that only the retired dashboard used. Dropped from existing files on load.
+const OBSOLETE_KEYS: &[&str] = &[
+    "accounts_collapsed",
+    "accounts_separate_tab",
+    "key_before_hidden",
+    "section_max_height",
+];
 
 pub fn defaults() -> Value {
     let mut v = json!({
@@ -116,6 +120,10 @@ pub(crate) fn migrate(data: &mut Value) -> bool {
                 .unwrap_or(5.0));
         }
     }
+    // Layout switches of the retired dashboard; nothing reads or writes them any more.
+    for key in OBSOLETE_KEYS {
+        data.as_object_mut().unwrap().remove(*key);
+    }
     *data != before
 }
 
@@ -131,7 +139,7 @@ pub(crate) fn resolve(raw: &Value) -> Value {
     }
     for &(key, fallback, min, max) in INTS {
         let number = raw[key].as_u64();
-        out[key] = json!(if key == "section_max_height" || key == "keep_backups" {
+        out[key] = json!(if key == "keep_backups" {
             number.map(|n| n.min(max)).unwrap_or(fallback)
         } else {
             number
@@ -353,18 +361,10 @@ pub(crate) fn apply_patch(data: &mut Value, patch: &Map<String, Value>) -> Resul
             continue;
         }
         if let Some(&(_, _, min, max)) = INTS.iter().find(|(k, _, _, _)| *k == key) {
-            let n = if key == "section_max_height" {
-                value.as_u64().or_else(|| {
-                    value
-                        .as_f64()
-                        .filter(|f| f.is_finite() && *f >= 0.0 && f.fract() == 0.0)
-                        .map(|f| f as u64)
-                })
-            } else {
-                value.as_u64()
-            }
-            .ok_or_else(|| invalid(format!("{key} must be a whole number")))?;
-            if n < min || (n > max && key != "section_max_height" && key != "keep_backups") {
+            let n = value
+                .as_u64()
+                .ok_or_else(|| invalid(format!("{key} must be a whole number")))?;
+            if n < min || (n > max && key != "keep_backups") {
                 return Err(invalid(format!("{key} must be between {min} and {max}")));
             }
             data[key] = json!(n.min(max));

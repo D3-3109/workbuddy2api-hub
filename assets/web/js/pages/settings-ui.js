@@ -17,10 +17,6 @@ add({
   '清除本浏览器的语言覆盖': 'Clear this browser’s language override', '已清除，正在重新加载…': 'Cleared, reloading…', '本浏览器没有单独设置语言': 'This browser has no language override',
   '导航栏显示的页面': 'Visible pages', '取消勾选即可在导航中隐藏该页面。设置页始终显示。': 'Untick a page to hide it from the navigation. Settings is always shown.',
   '网关': 'Gateway', '账号': 'Accounts', '数据看板': 'Analytics', '任务与福利': 'Tasks', '智能体': 'Agents', '日志': 'Logs', '设置': 'Settings',
-  '账号独立成一个页签': 'Accounts as a separate page', '把账号列表、临期账号和签到活动从网关页移到单独的「账号」页。': 'Move the account list, expiring accounts and check-in activity from the Gateway page to its own Accounts page.',
-  '面板窗口限高': 'Panel section max height', '区块超过该高度后在内部滚动，0 表示不限制。范围 0 到 4000。': 'Sections taller than this scroll internally. 0 means unlimited. Range 0 to 4000.',
-  '收起账号区块': 'Collapse the accounts block', '网关页账号区块的折叠状态。': 'Collapsed state of the accounts block on the Gateway page.',
-  '隐藏「切换前」行': 'Hide the “before switch” row', '在按 Key 统计的用量表中隐藏「切换前」这一行。': 'Hide the “before switch” row in the per-key usage table.',
 });
 
 const PAGES = [

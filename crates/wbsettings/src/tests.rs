@@ -90,7 +90,6 @@ fn invalid_patch_is_transactional_and_does_not_touch_disk() {
         json!({"limits":{"daily_token_limit":{"global":true}}}),
         json!({"limits":{"daily_token_limit":{"cn":-1}}}),
         json!({"daily_chat_model":"a/b"}),
-        json!({"section_max_height":-1}),
         json!({"ui_language":"xx"}),
     ] {
         assert!(
@@ -434,13 +433,49 @@ fn realm_limit_migration_override_and_pricing_migration() {
 }
 
 #[test]
+fn retired_dashboard_layout_keys_are_dropped_and_ignored() {
+    const KEYS: [&str; 4] = [
+        "accounts_collapsed",
+        "accounts_separate_tab",
+        "key_before_hidden",
+        "section_max_height",
+    ];
+    let store = Store::new(json!({
+        "accounts_collapsed": true, "accounts_separate_tab": true,
+        "key_before_hidden": true, "section_max_height": 900, "ui_language": "en"
+    }));
+    // Loading rewrites the file without them and keeps everything else.
+    let disk = store.disk();
+    for key in KEYS {
+        assert!(disk.get(key).is_none(), "{key} still on disk");
+        assert!(
+            store.settings.view().get(key).is_none(),
+            "{key} still in the view"
+        );
+    }
+    assert_eq!(disk["ui_language"], "en");
+    // A client that still sends them is not rejected, but nothing is stored.
+    store
+        .settings
+        .patch(
+            json!({"accounts_collapsed": true, "section_max_height": 10, "hidden_pages": ["logs"]}),
+        )
+        .unwrap();
+    let disk = store.disk();
+    for key in KEYS {
+        assert!(disk.get(key).is_none(), "{key} was stored by a patch");
+    }
+    assert_eq!(store.settings.view()["hidden_pages"], json!(["logs"]));
+}
+
+#[test]
 fn schedules_ui_and_clamps() {
     let store = Store::new(json!({}));
     store
         .settings
         .patch(
             json!({"schedule":{"checkin":"21,9,9,99","daily_chat":"9：05, 21:30"},
-        "hidden_pages":["logs","settings","logs","bad page","tasks"],"section_max_height":5000.0,
+        "hidden_pages":["logs","settings","logs","bad page","tasks"],
         "pricing_refresh_minutes":999999,"credits_refresh_hours":9999}),
         )
         .unwrap();
@@ -448,7 +483,6 @@ fn schedules_ui_and_clamps() {
     assert_eq!(view["schedule"]["checkin"], json!([9, 21]));
     assert_eq!(view["schedule"]["daily_chat"], json!(["09:05", "21:30"]));
     assert_eq!(view["hidden_pages"], json!(["logs", "tasks"]));
-    assert_eq!(view["section_max_height"], 4000);
     assert_eq!(view["pricing_refresh_minutes"], 43200.0);
     assert_eq!(view["credits_refresh_hours"], 720.0);
     store

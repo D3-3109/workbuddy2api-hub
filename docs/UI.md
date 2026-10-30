@@ -93,7 +93,7 @@ node tools/ui-dev.mjs 8790 8788     # 然后打开 http://127.0.0.1:8790/
 
 - 导航从顶部页签改成左侧栏，窄屏时变成底部标签栏。
 - 顶栏的“国际版 / 国内版”开关只决定看板显示哪个区域；网关的“默认出口”需要在网关页确认后才会改动，并保存到服务端。
-- 设置页里 `accounts_separate_tab`、`section_max_height`、`accounts_collapsed`、`key_before_hidden` 这几个旧版布局开关已不再显示（服务端仍接受这些键）。`hidden_pages` 继续有效。
+- 旧版的布局开关 `accounts_separate_tab`、`section_max_height`、`accounts_collapsed`、`key_before_hidden` 已整体移除：设置页不再显示，服务端也不再保存它们（已有的 `settings.json` 在加载时会自动清掉这几个键）。`hidden_pages` 继续有效。
 - 网关页的成功率改由 `/usage` 的 `requests` 与 `errors` 计算，不再请求体积很大的 `/usage/perf`（压力数据下单次约 880 KB）。
 - 旧版把“今日”写在页面文案里，实际统计的是整个日志；新版的“今日”卡片确实按当天统计。
 - 页面不再支持 `?pwd=` 自动登录，以免密码留在地址栏和历史记录里。`?tab=<页面>` 仍然可用。
